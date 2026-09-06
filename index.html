@@ -909,7 +909,52 @@ function buildPrintCalendarHtml(storeFilter){
     <p class="print-generated">Generado el ${new Date().toLocaleDateString('es-ES')}</p>
   `;
 }
+/* Cuando la app está anclada a la pantalla de inicio del iPhone/iPad ("modo
+   standalone"), abrir una pestaña nueva con window.open() dentro de esa app
+   deja al usuario en una ventana en blanco sin ninguna barra ni botón (ni
+   para imprimir ni para volver atrás): otro fallo conocido de iOS, distinto
+   del de window.print() pero igual de molesto. En ese caso usamos el menú
+   nativo de "Compartir" del propio iPhone/iPad en su lugar (siempre se
+   puede cancelar), que dentro tiene la opción de imprimir o guardarlo en
+   Archivos para abrirlo luego desde Safari. Fuera de ese modo (navegador
+   normal, tanto en el móvil como en el ordenador) seguimos abriendo una
+   pestaña nueva e imprimiendo directamente, que ahí sí funciona bien. */
+function isStandaloneApp(){
+  return (window.navigator.standalone === true) ||
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
+async function shareOrDownload(fullHtml, filenameHint){
+  const blob = new Blob([fullHtml], {type:'text/html'});
+  let file = null;
+  try{ file = new File([blob], `${filenameHint}.html`, {type:'text/html'}); }catch(e){}
+  if(file && navigator.canShare && navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({
+        files: [file],
+        title: 'Cuadrante Ópticas Florida',
+        text: 'Ábrelo y usa "Compartir" → "Imprimir" para imprimirlo o guardarlo como PDF.'
+      });
+      return;
+    }catch(err){
+      if(err && err.name === 'AbortError') return; // el usuario ha cancelado el menú de compartir, no hacemos nada más
+      // si el compartir falla por otro motivo, seguimos con la descarga de más abajo
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filenameHint}.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  alert('Se ha descargado un archivo con el cuadrante: ábrelo y, desde ahí, usa "Compartir" → "Imprimir".');
+}
 function openPrintWindow(fullHtml, filenameHint){
+  if(isStandaloneApp()){
+    shareOrDownload(fullHtml, filenameHint);
+    return;
+  }
   // Se abre síncronamente dentro del propio click (del botón de la tienda elegida) para que ningún navegador, incluido Safari, lo bloquee como ventana emergente.
   const w = window.open('', '_blank');
   if(w){
@@ -918,17 +963,8 @@ function openPrintWindow(fullHtml, filenameHint){
     w.document.close();
     setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 250);
   } else {
-    // Si el navegador ha bloqueado la ventana nueva, ofrecemos el mismo contenido como archivo para abrirlo aparte.
-    const blob = new Blob([fullHtml], {type:'text/html'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filenameHint}.html`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    alert('El navegador ha bloqueado la ventana de impresión. Se ha descargado un archivo con el cuadrante: ábrelo y, desde ahí, usa "Compartir" → "Imprimir".');
+    // Si el navegador ha bloqueado la ventana nueva, usamos el mismo camino de compartir/descargar de arriba.
+    shareOrDownload(fullHtml, filenameHint);
   }
 }
 function generateAndPrint(storeFilter){
