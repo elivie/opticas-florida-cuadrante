@@ -254,6 +254,9 @@ select.emp-picker{
 .list-row{display:flex; align-items:center; justify-content:space-between; padding:10px 4px; border-bottom:1px solid var(--border);}
 .list-row:last-child{border-bottom:none;}
 .list-row .del{background:none; border:none; color:var(--danger); font-size:14px; font-weight:600;}
+.list-row .baja{background:none; border:none; color:var(--text-dim); font-size:13px; font-weight:600;}
+.list-row .reactivar{background:none; border:none; color:var(--accent); font-size:14px; font-weight:600;}
+.list-row.inactive{opacity:.65;}
 .admin-toggle{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
 .admin-toggle input{margin:0; cursor:pointer;}
 .inline-form{display:flex; gap:8px; margin-top:10px;}
@@ -386,7 +389,24 @@ select.emp-picker{
           <p class="muted-note" id="pwdRestrictedNote" hidden>Solo un administrador puede cambiar la contraseña de acceso. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
         </div>
 
-        <p class="app-footer">Cuadrante Ópticas Florida · v1.0<br>© elivi 2026</p>
+        <div class="settings-card">
+          <h3>Zona peligrosa</h3>
+          <div id="resetAdminBlock">
+            <div class="field-label" style="margin-top:0;">Borrar turnos de un mes</div>
+            <input type="month" id="clearMonthInput" class="tpl-select" style="margin-bottom:0;">
+            <button class="btn danger" id="clearMonthBtn" style="width:100%; margin-top:8px;">Borrar turnos de ese mes</button>
+            <p class="muted-note">Borra solo los turnos ya asignados ese mes (las notas y los festivos marcados a mano no se tocan). Afecta a todo el equipo y no se puede deshacer.</p>
+
+            <div style="height:1px; background:var(--border); margin:16px 0;"></div>
+
+            <div class="field-label" style="margin-top:0;">Limpiar todo</div>
+            <button class="btn danger" id="resetAllBtn" style="width:100%; margin-top:4px;">Limpiar cuadrante completo</button>
+            <p class="muted-note">Borra empleados, turnos, notas y festivos marcados a mano de todo el equipo, de todos los meses. Las citas de las tiendas no se tocan. Afecta a todos los dispositivos y no se puede deshacer.</p>
+          </div>
+          <p class="muted-note" id="resetRestrictedNote" hidden>Solo un administrador puede usar estas opciones. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
+        </div>
+
+        <p class="app-footer">Cuadrante Ópticas Florida · v1.1<br>© elivi 2026</p>
 
       </section>
 
@@ -433,12 +453,12 @@ function seedData(){
   return {
     password: PASS_DEFAULT,
     employees: [
-      {id:'maria', nombre:'María', admin:false},
-      {id:'juan', nombre:'Juan', admin:false},
-      {id:'ana', nombre:'Ana', admin:false},
-      {id:'lucia', nombre:'Lucía', admin:false},
-      {id:'pedro', nombre:'Pedro', admin:false},
-      {id:'miguel', nombre:'Miguel (óptico)', admin:false}
+      {id:'maria', nombre:'María', admin:false, activo:true},
+      {id:'juan', nombre:'Juan', admin:false, activo:true},
+      {id:'ana', nombre:'Ana', admin:false, activo:true},
+      {id:'lucia', nombre:'Lucía', admin:false, activo:true},
+      {id:'pedro', nombre:'Pedro', admin:false, activo:true},
+      {id:'miguel', nombre:'Miguel (óptico)', admin:false, activo:true}
     ],
     templates: {
       maria:{ tiendaHabitual:'ALC', M:{ini:'09:30',fin:'13:30'}, T:{ini:'16:30',fin:'20:00'}, P:{tramos:[{tienda:'ALC',ini:'09:30',fin:'13:30'},{tienda:'ALC',ini:'16:30',fin:'20:00'}]} },
@@ -520,13 +540,35 @@ let state = {
   locked: localStorage.getItem(LOCK_KEY) === '1'
 };
 
+/* Cuando se borra un empleado, sus turnos/notas de días concretos no deberían
+   quedar "huérfanos" en el cuadrante. Esta función los limpia. Devuelve true
+   si borró algo (para saber si conviene volver a sincronizar con el servidor). */
+function cleanOrphanData(data){
+  let changed = false;
+  const validIds = new Set((data.employees||[]).map(e=>e.id));
+  Object.keys(data.schedule||{}).forEach(day=>{
+    Object.keys(data.schedule[day]).forEach(empId=>{
+      if(!validIds.has(empId)){ delete data.schedule[day][empId]; changed = true; }
+    });
+    if(Object.keys(data.schedule[day]).length===0) delete data.schedule[day];
+  });
+  Object.keys(data.templates||{}).forEach(empId=>{
+    if(!validIds.has(empId)){ delete data.templates[empId]; changed = true; }
+  });
+  return changed;
+}
+
 function loadData(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){
       const parsed = JSON.parse(raw);
       if(!parsed.holidays) parsed.holidays = {}; // migración: datos guardados antes de esta función
-      if(Array.isArray(parsed.employees)) parsed.employees.forEach(e=>{ if(typeof e.admin === 'undefined') e.admin = false; }); // migración: flag admin
+      if(Array.isArray(parsed.employees)) parsed.employees.forEach(e=>{
+        if(typeof e.admin === 'undefined') e.admin = false; // migración: flag admin
+        if(typeof e.activo === 'undefined') e.activo = true; // migración: flag activo/de baja
+      });
+      if(cleanOrphanData(parsed)) localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
       return parsed;
     }
   }catch(e){}
@@ -579,6 +621,7 @@ async function syncPull(){
   if(resp.ok){
     const serverData = await resp.json();
     DATA = serverData;
+    if(cleanOrphanData(DATA)) syncPush(); // había turnos de empleados ya borrados: limpiamos y lo subimos para que todos vean la copia limpia
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
   }
 }
@@ -670,13 +713,22 @@ async function tryGate(){
 
 /* ============ ¿QUIÉN ERES? ============ */
 function ensureWho(){
-  if(state.who && DATA.employees.some(e=>e.id===state.who)){
+  if(state.who && DATA.employees.some(e=>e.id===state.who && e.activo!==false)){
     document.getElementById('whoModal').hidden = true;
     updateWhoBtn();
     return;
   }
+  const activos = DATA.employees.filter(e=>e.activo!==false);
+  if(activos.length === 0){
+    // Sin empleados todavía (p. ej. justo después de "Limpiar cuadrante completo"):
+    // no bloqueamos la app, para que se pueda entrar en Ajustes a crear el primero.
+    document.getElementById('whoModal').hidden = true;
+    state.who = null;
+    updateWhoBtn();
+    return;
+  }
   const list = document.getElementById('whoList');
-  list.innerHTML = DATA.employees.map(e=>`<button data-id="${e.id}">${e.nombre}</button>`).join('');
+  list.innerHTML = activos.map(e=>`<button data-id="${e.id}">${e.nombre}</button>`).join('');
   list.querySelectorAll('button').forEach(b=>{
     b.addEventListener('click', ()=>{
       state.who = b.dataset.id;
@@ -714,7 +766,7 @@ document.querySelectorAll('.tab').forEach(btn=>{
 /* ============ CUADRANTE ============ */
 function renderEmpChips(){
   const wrap = document.getElementById('empChips');
-  const chips = [{id:'todos', nombre:'Todos'}, ...DATA.employees];
+  const chips = [{id:'todos', nombre:'Todos'}, ...DATA.employees.filter(e=>e.activo!==false)];
   wrap.innerHTML = chips.map(c=>`<button class="chip ${state.empFilter===c.id?'active':''}" data-id="${c.id}">${c.nombre}</button>`).join('');
   wrap.querySelectorAll('.chip').forEach(ch=>{
     ch.addEventListener('click', ()=>{
@@ -1047,7 +1099,7 @@ function editorBlockHtml(dateKeyStr, empId, existing, pickerMode){
 
   const headerHtml = pickerMode
     ? `<div class="field-label" style="margin-top:0;">Empleado</div>
-       <select class="emp-picker">${DATA.employees.map(e=>`<option value="${e.id}" ${e.id===empId?'selected':''}>${e.nombre}</option>`).join('')}</select>`
+       <select class="emp-picker">${DATA.employees.filter(e=>e.activo!==false || e.id===empId).map(e=>`<option value="${e.id}" ${e.id===empId?'selected':''}>${e.nombre}</option>`).join('')}</select>`
     : `<div class="field-label" style="margin-top:0;">${empName(empId)} — tu turno hoy</div>`;
 
   return `
@@ -1295,22 +1347,56 @@ document.querySelectorAll('#themeSeg button').forEach(btn=>{
 
 function renderEmpList(){
   const wrap = document.getElementById('empList');
-  wrap.innerHTML = DATA.employees.map(e=>`
-    <div class="list-row">
-      <span>${e.nombre}</span>
-      <label class="admin-toggle"><input type="checkbox" class="admin-chk" data-id="${e.id}" ${e.admin?'checked':''}> Admin</label>
-      <button class="del" data-id="${e.id}">Quitar</button>
-    </div>
-  `).join('');
-  wrap.querySelectorAll('.del').forEach(btn=>{
+  wrap.innerHTML = DATA.employees.map(e=>{
+    const activo = e.activo !== false;
+    if(activo){
+      return `
+        <div class="list-row">
+          <span>${e.nombre}</span>
+          <label class="admin-toggle"><input type="checkbox" class="admin-chk" data-id="${e.id}" ${e.admin?'checked':''}> Admin</label>
+          <button class="baja" data-id="${e.id}">Dar de baja</button>
+        </div>`;
+    }
+    return `
+      <div class="list-row inactive">
+        <span>${e.nombre} <em class="muted-note" style="display:inline;">(de baja)</em></span>
+        <button class="reactivar" data-id="${e.id}">Reactivar</button>
+        <button class="del" data-id="${e.id}">Eliminar</button>
+      </div>`;
+  }).join('');
+  wrap.querySelectorAll('.baja').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(!confirm(`¿Quitar a ${empName(btn.dataset.id)} de la lista de empleados?`)) return;
-      DATA.employees = DATA.employees.filter(e=>e.id!==btn.dataset.id);
-      delete DATA.templates[btn.dataset.id];
+      if(!confirm(`¿Dar de baja a ${empName(btn.dataset.id)}?\n\nDejará de aparecer para elegir identidad o asignarle turnos nuevos, pero sus turnos ya metidos en el cuadrante se conservan tal cual, con su nombre, por si hace falta consultarlos más adelante.\n\nSi vuelve a trabajar, puedes reactivarlo cuando quieras desde aquí mismo.`)) return;
+      const e = DATA.employees.find(e=>e.id===btn.dataset.id);
+      if(e) e.activo = false;
       saveData();
       renderEmpList();
       renderTplSelect();
       renderPwdCard();
+      renderCuadrante();
+    });
+  });
+  wrap.querySelectorAll('.reactivar').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const e = DATA.employees.find(e=>e.id===btn.dataset.id);
+      if(e) e.activo = true;
+      saveData();
+      renderEmpList();
+      renderTplSelect();
+      renderPwdCard();
+      renderCuadrante();
+    });
+  });
+  wrap.querySelectorAll('.del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!confirm(`¿Eliminar a ${empName(btn.dataset.id)} definitivamente?\n\nA diferencia de "Dar de baja", esto SÍ borra para siempre todo su historial de turnos ya metidos en el cuadrante. No se puede deshacer. Úsalo solo si se añadió por error, no para una baja normal.\n\n¿Seguro que quieres eliminarlo del todo?`)) return;
+      DATA.employees = DATA.employees.filter(e=>e.id!==btn.dataset.id);
+      cleanOrphanData(DATA);
+      saveData();
+      renderEmpList();
+      renderTplSelect();
+      renderPwdCard();
+      renderCuadrante();
     });
   });
   wrap.querySelectorAll('.admin-chk').forEach(chk=>{
@@ -1326,6 +1412,8 @@ function renderEmpList(){
 /* Solo un empleado marcado como "admin" puede ver el bloque de cambiar la contraseña
    (candado simbólico: como "¿quién eres?" no es un login real, no impide que alguien
    se marque a sí mismo como admin, pero evita que se toque por despiste). */
+/* Gestiona la visibilidad de TODAS las tarjetas de Ajustes restringidas a "admin"
+   (contraseña de acceso, limpiar cuadrante completo, ...). */
 function renderPwdCard(){
   const me = DATA.employees.find(e=>e.id===state.who);
   const isAdmin = !!(me && me.admin);
@@ -1333,7 +1421,44 @@ function renderPwdCard(){
   const note = document.getElementById('pwdRestrictedNote');
   if(block) block.hidden = !isAdmin;
   if(note) note.hidden = isAdmin;
+  const resetBlock = document.getElementById('resetAdminBlock');
+  const resetNote = document.getElementById('resetRestrictedNote');
+  if(resetBlock) resetBlock.hidden = !isAdmin;
+  if(resetNote) resetNote.hidden = isAdmin;
 }
+
+document.getElementById('clearMonthBtn').addEventListener('click', ()=>{
+  const val = document.getElementById('clearMonthInput').value; // "YYYY-MM"
+  if(!val){ alert('Elige primero el mes que quieres borrar.'); return; }
+  const [y, m] = val.split('-').map(Number);
+  const label = monthLabel(y, m-1);
+  if(!confirm(`¿Borrar todos los turnos de ${label}?\n\nSolo se borran los turnos ya asignados ese mes; las notas y los festivos marcados a mano no se tocan. Afecta a todo el equipo y no se puede deshacer.\n\n¿Continuar?`)) return;
+  let count = 0;
+  Object.keys(DATA.schedule).forEach(day=>{
+    if(day.startsWith(val+'-')){ delete DATA.schedule[day]; count++; }
+  });
+  saveData();
+  renderCuadrante();
+  alert(count>0 ? `Turnos de ${label} borrados (${count} día${count===1?'':'s'} con turnos).` : `${label} no tenía turnos guardados.`);
+});
+
+document.getElementById('resetAllBtn').addEventListener('click', ()=>{
+  if(!confirm('¿Seguro que quieres limpiar el cuadrante completo?\n\nSe borrarán TODOS los empleados, turnos, notas y festivos marcados a mano, para todo el equipo. Las citas de las tiendas no se tocan.\n\n¿Continuar?')) return;
+  if(!confirm('Última confirmación: esto va a dejar el cuadrante completamente vacío ahora mismo, para todos los dispositivos, y no se puede deshacer.\n\n¿Confirmas que quieres limpiarlo todo?')) return;
+  DATA.employees = [];
+  DATA.templates = {};
+  DATA.schedule = {};
+  DATA.notes = {};
+  DATA.holidays = {};
+  state.who = null;
+  state.empFilter = 'todos';
+  localStorage.removeItem(WHO_KEY);
+  saveData();
+  renderAjustes();
+  renderCuadrante();
+  ensureWho();
+  alert('Cuadrante limpiado. Ve a "Empleados" en Ajustes para volver a añadir al equipo.');
+});
 document.getElementById('addEmpBtn').addEventListener('click', ()=>{
   const input = document.getElementById('newEmpName');
   const nombre = input.value.trim();
@@ -1350,8 +1475,9 @@ document.getElementById('addEmpBtn').addEventListener('click', ()=>{
 function renderTplSelect(){
   const sel = document.getElementById('tplEmpSelect');
   const prev = sel.value;
-  sel.innerHTML = DATA.employees.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
-  if(prev && DATA.employees.some(e=>e.id===prev)) sel.value = prev;
+  const activos = DATA.employees.filter(e=>e.activo!==false);
+  sel.innerHTML = activos.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
+  if(prev && activos.some(e=>e.id===prev)) sel.value = prev;
   renderTplEditor();
 }
 document.getElementById('tplEmpSelect').addEventListener('change', renderTplEditor);
@@ -1446,6 +1572,11 @@ function renderAjustes(){
   renderTplSelect();
   renderStoreList();
   renderPwdCard();
+  const monthInput = document.getElementById('clearMonthInput');
+  if(monthInput && !monthInput.value){
+    const t = new Date();
+    monthInput.value = `${t.getFullYear()}-${pad(t.getMonth()+1)}`;
+  }
 }
 
 /* ============ ARRANQUE ============ */
