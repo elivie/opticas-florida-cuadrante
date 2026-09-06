@@ -270,6 +270,24 @@ select.emp-picker{
 .tpl-hours input[type=time]{padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:13px;}
 .muted-note{color:var(--text-dim); font-size:12px; margin-top:4px;}
 .app-footer{text-align:center; color:var(--text-dim); font-size:11px; line-height:1.6; margin:24px 0 8px;}
+
+#printSheet{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  #printSheet, #printSheet *{visibility:visible;}
+  #printSheet{display:block; position:absolute; top:0; left:0; width:100%; margin:0; padding:0; background:#fff; color:#111;}
+  #printSheet h1{font-size:18px; margin:0 0 2px;}
+  #printSheet h2{font-size:13px; font-weight:600; margin:0 0 14px; color:#444;}
+  .print-table{width:100%; border-collapse:collapse; font-size:12px;}
+  .print-table td{border:1px solid #ccc; padding:6px 8px; vertical-align:top;}
+  .print-daycell{width:64px; font-weight:700; text-align:center; white-space:nowrap;}
+  .print-wd{display:block; font-weight:400; font-size:10px; color:#666; text-transform:capitalize;}
+  tr.print-holiday td{background:#f2f2f2;}
+  .print-entry{margin-bottom:2px;}
+  .print-empty{color:#999;}
+  .print-note{margin-top:4px; font-style:italic; color:#555;}
+  .print-generated{margin-top:14px; font-size:10px; color:#888;}
+}
 </style>
 </head>
 <body>
@@ -332,6 +350,7 @@ select.emp-picker{
         </div>
         <div class="weekday-row"><div>L</div><div>M</div><div>X</div><div>J</div><div>V</div><div>S</div><div>D</div></div>
         <div class="cal-grid" id="calGrid"></div>
+        <button class="btn" id="printBtn" style="width:100%; margin-top:16px;">🖨️ Exportar / imprimir este mes</button>
       </section>
 
       <!-- CITAS -->
@@ -391,6 +410,22 @@ select.emp-picker{
         </div>
 
         <div class="settings-card">
+          <h3>Copia de seguridad</h3>
+          <button class="btn primary" id="exportBackupBtn" style="width:100%;">Descargar copia de seguridad</button>
+          <p class="muted-note">Descarga un archivo con todo el cuadrante (empleados, turnos, notas, festivos y citas) por si hace falta recuperarlo más adelante. Puede descargarla cualquiera.</p>
+
+          <div style="height:1px; background:var(--border); margin:16px 0;"></div>
+
+          <div id="restoreAdminBlock">
+            <div class="field-label" style="margin-top:0;">Restaurar desde una copia</div>
+            <input type="file" id="restoreFileInput" accept="application/json" style="margin-bottom:8px;">
+            <button class="btn danger" id="restoreBackupBtn" style="width:100%;">Restaurar esta copia</button>
+            <p class="muted-note">Sustituye TODO lo que hay ahora mismo por lo que había en el archivo, para todo el equipo y todos los dispositivos. Útil si se borra algo por error. No se puede deshacer.</p>
+          </div>
+          <p class="muted-note" id="restoreRestrictedNote" hidden>Solo un administrador puede restaurar una copia de seguridad. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
+        </div>
+
+        <div class="settings-card">
           <h3>Zona peligrosa</h3>
           <div id="resetAdminBlock">
             <div class="field-label" style="margin-top:0;">Borrar turnos de un mes</div>
@@ -407,7 +442,7 @@ select.emp-picker{
           <p class="muted-note" id="resetRestrictedNote" hidden>Solo un administrador puede usar estas opciones. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
         </div>
 
-        <p class="app-footer">Cuadrante Ópticas Florida · v1.1<br>© elivi 2026</p>
+        <p class="app-footer">Cuadrante Ópticas Florida · v1.2<br>© elivi 2026</p>
 
       </section>
 
@@ -419,6 +454,9 @@ select.emp-picker{
 <div class="sheet-overlay" id="daySheetOverlay" hidden>
   <div class="sheet" id="daySheet"></div>
 </div>
+
+<!-- Contenido generado solo para exportar/imprimir el mes (oculto en pantalla, ver CSS @media print) -->
+<div id="printSheet"></div>
 
 <script>
 (function(){
@@ -819,6 +857,47 @@ function dotStyle(code){
   const k = code.toLowerCase();
   return `background:rgb(var(--${k}-rgb));`;
 }
+
+/* ---------- Exportar / imprimir el mes ---------- */
+function buildPrintSheet(){
+  const y = state.calYear, m = state.calMonth;
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const filterId = state.empFilter;
+  const filterName = filterId==='todos' ? '' : empName(filterId);
+  const diasSemana = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  let rowsHtml = '';
+  for(let d=1; d<=daysInMonth; d++){
+    const key = dateKey(y,m,d);
+    const wd = new Date(y,m,d).getDay();
+    const esFestivo = wd===0 || !!DATA.holidays[key];
+    let entries = getEntriesForDate(key);
+    if(filterId !== 'todos') entries = entries.filter(en=>en.empId===filterId);
+    const note = DATA.notes[key];
+    const entriesHtml = entries.length
+      ? entries.map(en=>{
+          const st = SHIFT_TYPES[en.tipo];
+          const horas = st.hasHours
+            ? `${en.ini}–${en.fin}${en.tienda ? ' · ' + (STORE_BY_CODE[en.tienda]?.name || en.tienda) : ''}`
+            : st.label;
+          return `<div class="print-entry"><b>${empName(en.empId)}</b> — ${horas}</div>`;
+        }).join('')
+      : '<span class="print-empty">—</span>';
+    rowsHtml += `<tr class="${esFestivo ? 'print-holiday' : ''}">
+      <td class="print-daycell">${d}<span class="print-wd">${diasSemana[wd]}</span></td>
+      <td>${entriesHtml}${note ? `<div class="print-note">${note}</div>` : ''}</td>
+    </tr>`;
+  }
+  document.getElementById('printSheet').innerHTML = `
+    <h1>Cuadrante Ópticas Florida</h1>
+    <h2>${monthLabel(y,m)}${filterName ? ' · ' + filterName : ''}</h2>
+    <table class="print-table"><tbody>${rowsHtml}</tbody></table>
+    <p class="print-generated">Generado el ${new Date().toLocaleDateString('es-ES')}</p>
+  `;
+}
+document.getElementById('printBtn').addEventListener('click', ()=>{
+  buildPrintSheet();
+  window.print();
+});
 
 function sizeCalendarCells(grid, rowCount){
   const rect = grid.getBoundingClientRect();
@@ -1427,6 +1506,10 @@ function renderPwdCard(){
   const resetNote = document.getElementById('resetRestrictedNote');
   if(resetBlock) resetBlock.hidden = !isAdmin;
   if(resetNote) resetNote.hidden = isAdmin;
+  const restoreBlock = document.getElementById('restoreAdminBlock');
+  const restoreNote = document.getElementById('restoreRestrictedNote');
+  if(restoreBlock) restoreBlock.hidden = !isAdmin;
+  if(restoreNote) restoreNote.hidden = isAdmin;
 }
 
 document.getElementById('clearMonthBtn').addEventListener('click', ()=>{
@@ -1461,6 +1544,71 @@ document.getElementById('resetAllBtn').addEventListener('click', ()=>{
   ensureWho();
   alert('Cuadrante limpiado. Ve a "Empleados" en Ajustes para volver a añadir al equipo.');
 });
+
+/* ---------- Copia de seguridad ---------- */
+document.getElementById('exportBackupBtn').addEventListener('click', ()=>{
+  const backup = {
+    app: 'opticas-florida-cuadrante',
+    version: '1.2',
+    exportedAt: new Date().toISOString(),
+    data: DATA
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cuadrante-florida-backup-${todayKey()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+});
+
+document.getElementById('restoreBackupBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('restoreFileInput');
+  const file = input.files && input.files[0];
+  if(!file){ alert('Elige primero el archivo de la copia de seguridad (.json).'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try{
+      parsed = JSON.parse(reader.result);
+    }catch(e){
+      alert('Ese archivo no se ha podido leer: no es un JSON válido.');
+      return;
+    }
+    const incoming = (parsed && parsed.data && Array.isArray(parsed.data.employees)) ? parsed.data
+                    : (parsed && Array.isArray(parsed.employees) ? parsed : null);
+    if(!incoming){
+      alert('Ese archivo no parece una copia de seguridad de esta app (falta la lista de empleados).');
+      return;
+    }
+    if(!confirm('¿Restaurar esta copia de seguridad?\n\nSe sustituirá TODO lo que hay ahora mismo (empleados, turnos, notas, festivos y citas) por lo guardado en el archivo, para todo el equipo y todos los dispositivos.\n\n¿Continuar?')) return;
+    if(!confirm('Última confirmación: esto no se puede deshacer. ¿Confirmas que quieres restaurar esta copia?')) return;
+    if(!incoming.holidays) incoming.holidays = {};
+    if(!incoming.notes) incoming.notes = {};
+    if(!incoming.templates) incoming.templates = {};
+    if(!incoming.schedule) incoming.schedule = {};
+    if(!incoming.citas) incoming.citas = {ALC:{}, POL:{}, ART:{}};
+    incoming.employees.forEach(e=>{
+      if(typeof e.admin==='undefined') e.admin = false;
+      if(typeof e.activo==='undefined') e.activo = true;
+    });
+    DATA = incoming;
+    cleanOrphanData(DATA);
+    state.who = null;
+    state.empFilter = 'todos';
+    localStorage.removeItem(WHO_KEY);
+    saveData();
+    input.value = '';
+    renderAjustes();
+    renderCuadrante();
+    ensureWho();
+    alert('Copia de seguridad restaurada correctamente.');
+  };
+  reader.readAsText(file);
+});
+
 document.getElementById('addEmpBtn').addEventListener('click', ()=>{
   const input = document.getElementById('newEmpName');
   const nombre = input.value.trim();
