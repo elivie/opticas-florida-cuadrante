@@ -13,9 +13,9 @@
   --bg:#0f1115; --surface:#1a1d24; --surface-2:#23262e; --surface-3:#2b2f39;
   --border:#2e323c; --text:#eef0f3; --text-dim:#9aa0ab; --accent:#4f8ff7; --accent-contrast:#ffffff;
   --danger:#ef6b6b; --radius:14px;
-  --m:#fbbf24; --t:#38bdf8; --p:#f472b6; --v:#34d399; --b:#f87171;
+  --m:#fbbf24; --t:#38bdf8; --p:#f472b6; --l:#a78bfa; --v:#34d399; --b:#f87171;
   --alc:#3b82f6; --pol:#a855f7; --art:#14b8a6;
-  --m-rgb:251,191,36; --t-rgb:56,189,248; --p-rgb:244,114,182; --v-rgb:52,211,153; --b-rgb:248,113,113;
+  --m-rgb:251,191,36; --t-rgb:56,189,248; --p-rgb:244,114,182; --l-rgb:167,139,250; --v-rgb:52,211,153; --b-rgb:248,113,113;
   --alc-rgb:59,130,246; --pol-rgb:168,85,247; --art-rgb:20,184,166;
   --shadow: 0 8px 24px rgba(0,0,0,.35);
 }
@@ -436,6 +436,7 @@ const SHIFT_TYPES = {
   M:{label:'Mañana', color:'var(--m)', hasHours:true, blocks:1},
   T:{label:'Tarde', color:'var(--t)', hasHours:true, blocks:1},
   P:{label:'Partido', color:'var(--p)', hasHours:true, blocks:2},
+  L:{label:'Libre', color:'var(--l)', hasHours:false, blocks:0},
   V:{label:'Vacaciones', color:'var(--v)', hasHours:false, blocks:0},
   B:{label:'Baja', color:'var(--b)', hasHours:false, blocks:0}
 };
@@ -1511,7 +1512,7 @@ function renderTplEditor(){
       <select class="tpl-select tpl-p-tienda2" style="margin-bottom:6px;">${STORES.map(s=>`<option value="${s.code}" ${(tpl.P?.tramos?.[1]?.tienda)===s.code?'selected':''}>${s.name}</option>`).join('')}</select>
       <div class="tpl-hours"><input type="time" class="tpl-p-ini2" value="${tpl.P?.tramos?.[1]?.ini||''}"><input type="time" class="tpl-p-fin2" value="${tpl.P?.tramos?.[1]?.fin||''}"></div>
     </div>
-    <div class="muted-note">Vacaciones (V) y Baja (B) no necesitan horario.</div>
+    <div class="muted-note">Libre (L), Vacaciones (V) y Baja (B) no necesitan horario.</div>
     <button class="btn primary" style="margin-top:12px;" id="saveTplBtn">Guardar plantilla</button>
   `;
   document.getElementById('saveTplBtn').addEventListener('click', ()=>{
