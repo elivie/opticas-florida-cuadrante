@@ -254,6 +254,8 @@ select.emp-picker{
 .list-row{display:flex; align-items:center; justify-content:space-between; padding:10px 4px; border-bottom:1px solid var(--border);}
 .list-row:last-child{border-bottom:none;}
 .list-row .del{background:none; border:none; color:var(--danger); font-size:14px; font-weight:600;}
+.admin-toggle{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
+.admin-toggle input{margin:0; cursor:pointer;}
 .inline-form{display:flex; gap:8px; margin-top:10px;}
 .inline-form input{flex:1; padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:14px;}
 .tpl-select{width:100%; padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:14px; margin-bottom:14px;}
@@ -373,11 +375,14 @@ select.emp-picker{
 
         <div class="settings-card">
           <h3>Contraseña de acceso</h3>
-          <div class="inline-form">
-            <input type="password" id="newPassInput" placeholder="Nueva contraseña compartida">
-            <button class="btn primary" id="savePassBtn">Guardar</button>
+          <div id="pwdAdminBlock">
+            <div class="inline-form">
+              <input type="password" id="newPassInput" placeholder="Nueva contraseña compartida">
+              <button class="btn primary" id="savePassBtn">Guardar</button>
+            </div>
+            <p class="muted-note">Es una única contraseña para todo el equipo. Al cambiarla se cierra la sesión al instante en TODOS los dispositivos (incluido este) y habrá que volver a entrar con la nueva clave.</p>
           </div>
-          <p class="muted-note">De momento se guarda solo en este dispositivo (vista previa). Cuando conectemos la sincronización, esta contraseña será la misma para todos.</p>
+          <p class="muted-note" id="pwdRestrictedNote" hidden>Solo un administrador puede cambiar la contraseña de acceso. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
         </div>
 
       </section>
@@ -425,12 +430,12 @@ function seedData(){
   return {
     password: PASS_DEFAULT,
     employees: [
-      {id:'maria', nombre:'María'},
-      {id:'juan', nombre:'Juan'},
-      {id:'ana', nombre:'Ana'},
-      {id:'lucia', nombre:'Lucía'},
-      {id:'pedro', nombre:'Pedro'},
-      {id:'miguel', nombre:'Miguel (óptico)'}
+      {id:'maria', nombre:'María', admin:false},
+      {id:'juan', nombre:'Juan', admin:false},
+      {id:'ana', nombre:'Ana', admin:false},
+      {id:'lucia', nombre:'Lucía', admin:false},
+      {id:'pedro', nombre:'Pedro', admin:false},
+      {id:'miguel', nombre:'Miguel (óptico)', admin:false}
     ],
     templates: {
       maria:{ tiendaHabitual:'ALC', M:{ini:'09:30',fin:'13:30'}, T:{ini:'16:30',fin:'20:00'}, P:{tramos:[{tienda:'ALC',ini:'09:30',fin:'13:30'},{tienda:'ALC',ini:'16:30',fin:'20:00'}]} },
@@ -518,6 +523,7 @@ function loadData(){
     if(raw){
       const parsed = JSON.parse(raw);
       if(!parsed.holidays) parsed.holidays = {}; // migración: datos guardados antes de esta función
+      if(Array.isArray(parsed.employees)) parsed.employees.forEach(e=>{ if(typeof e.admin === 'undefined') e.admin = false; }); // migración: flag admin
       return parsed;
     }
   }catch(e){}
@@ -676,6 +682,7 @@ function ensureWho(){
       state.empFilter = state.who;
       updateWhoBtn();
       renderCuadrante();
+      renderPwdCard();
     });
   });
   document.getElementById('whoModal').hidden = false;
@@ -1286,7 +1293,11 @@ document.querySelectorAll('#themeSeg button').forEach(btn=>{
 function renderEmpList(){
   const wrap = document.getElementById('empList');
   wrap.innerHTML = DATA.employees.map(e=>`
-    <div class="list-row"><span>${e.nombre}</span><button class="del" data-id="${e.id}">Quitar</button></div>
+    <div class="list-row">
+      <span>${e.nombre}</span>
+      <label class="admin-toggle"><input type="checkbox" class="admin-chk" data-id="${e.id}" ${e.admin?'checked':''}> Admin</label>
+      <button class="del" data-id="${e.id}">Quitar</button>
+    </div>
   `).join('');
   wrap.querySelectorAll('.del').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1296,8 +1307,29 @@ function renderEmpList(){
       saveData();
       renderEmpList();
       renderTplSelect();
+      renderPwdCard();
     });
   });
+  wrap.querySelectorAll('.admin-chk').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const e = DATA.employees.find(e=>e.id===chk.dataset.id);
+      if(e) e.admin = chk.checked;
+      saveData();
+      renderPwdCard();
+    });
+  });
+}
+
+/* Solo un empleado marcado como "admin" puede ver el bloque de cambiar la contraseña
+   (candado simbólico: como "¿quién eres?" no es un login real, no impide que alguien
+   se marque a sí mismo como admin, pero evita que se toque por despiste). */
+function renderPwdCard(){
+  const me = DATA.employees.find(e=>e.id===state.who);
+  const isAdmin = !!(me && me.admin);
+  const block = document.getElementById('pwdAdminBlock');
+  const note = document.getElementById('pwdRestrictedNote');
+  if(block) block.hidden = !isAdmin;
+  if(note) note.hidden = isAdmin;
 }
 document.getElementById('addEmpBtn').addEventListener('click', ()=>{
   const input = document.getElementById('newEmpName');
@@ -1377,6 +1409,8 @@ document.getElementById('savePassBtn').addEventListener('click', async ()=>{
   const input = document.getElementById('newPassInput');
   const v = input.value.trim();
   if(!v) return;
+  if(!confirm('¿Seguro que quieres cambiar la contraseña compartida?\n\nEsto desconectará AL INSTANTE a todos los dispositivos, incluido este. Todo el mundo (tú también) tendrá que volver a entrar con la nueva contraseña.\n\n¿Continuar?')) return;
+  if(!confirm(`Vas a establecer la nueva contraseña como:\n\n"${v}"\n\nAsegúrate de haberla apuntado en un sitio seguro antes de continuar, porque si nadie la recuerda, nadie podrá volver a entrar. ¿Confirmas el cambio?`)) return;
   const token = getToken();
   if(!token){ alert('Tu sesión no es válida ahora mismo. Vuelve a entrar con la contraseña actual e inténtalo de nuevo.'); return; }
   const btn = document.getElementById('savePassBtn');
@@ -1408,6 +1442,7 @@ function renderAjustes(){
   renderEmpList();
   renderTplSelect();
   renderStoreList();
+  renderPwdCard();
 }
 
 /* ============ ARRANQUE ============ */
