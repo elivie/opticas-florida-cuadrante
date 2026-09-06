@@ -270,24 +270,6 @@ select.emp-picker{
 .tpl-hours input[type=time]{padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:13px;}
 .muted-note{color:var(--text-dim); font-size:12px; margin-top:4px;}
 .app-footer{text-align:center; color:var(--text-dim); font-size:11px; line-height:1.6; margin:24px 0 8px;}
-
-#printSheet{display:none;}
-@media print{
-  body *{visibility:hidden;}
-  #printSheet, #printSheet *{visibility:visible;}
-  #printSheet{display:block; position:absolute; top:0; left:0; width:100%; margin:0; padding:0; background:#fff; color:#111;}
-  #printSheet h1{font-size:18px; margin:0 0 2px;}
-  #printSheet h2{font-size:13px; font-weight:600; margin:0 0 14px; color:#444;}
-  .print-table{width:100%; border-collapse:collapse; font-size:12px;}
-  .print-table td{border:1px solid #ccc; padding:6px 8px; vertical-align:top;}
-  .print-daycell{width:64px; font-weight:700; text-align:center; white-space:nowrap;}
-  .print-wd{display:block; font-weight:400; font-size:10px; color:#666; text-transform:capitalize;}
-  tr.print-holiday td{background:#f2f2f2;}
-  .print-entry{margin-bottom:2px;}
-  .print-empty{color:#999;}
-  .print-note{margin-top:4px; font-style:italic; color:#555;}
-  .print-generated{margin-top:14px; font-size:10px; color:#888;}
-}
 </style>
 </head>
 <body>
@@ -310,6 +292,16 @@ select.emp-picker{
       <h2>¿Quién eres?</h2>
       <p class="hint">Se recordará en este dispositivo. Podrás ver el horario de cualquier compañero cuando quieras.</p>
       <div class="who-list" id="whoList"></div>
+    </div>
+  </div>
+
+  <!-- Modal selector de tienda para exportar/imprimir -->
+  <div id="printModal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <h2>Exportar / imprimir</h2>
+      <p class="hint">Elige el calendario que quieres generar para este mes.</p>
+      <div class="who-list" id="printStoreList"></div>
+      <button class="btn" id="printModalCancel" style="width:100%; margin-top:4px;">Cancelar</button>
     </div>
   </div>
 
@@ -454,9 +446,6 @@ select.emp-picker{
 <div class="sheet-overlay" id="daySheetOverlay" hidden>
   <div class="sheet" id="daySheet"></div>
 </div>
-
-<!-- Contenido generado solo para exportar/imprimir el mes (oculto en pantalla, ver CSS @media print) -->
-<div id="printSheet"></div>
 
 <script>
 (function(){
@@ -858,45 +847,109 @@ function dotStyle(code){
   return `background:rgb(var(--${k}-rgb));`;
 }
 
-/* ---------- Exportar / imprimir el mes ---------- */
-function buildPrintSheet(){
+/* ---------- Exportar / imprimir el mes ----------
+   Ojo: NO usamos window.print() sobre la propia app. Cuando la app está
+   instalada en la pantalla de inicio del iPhone/iPad (modo "standalone"),
+   iOS tiene un fallo conocido de hace años por el que window.print() no
+   hace absolutamente nada ahí dentro. La forma fiable de que funcione en
+   cualquier situación (instalada en el iPhone, en el iPad o en un
+   navegador normal de escritorio) es abrir el cuadrante del mes en una
+   pestaña/ventana nueva, ya con su propio HTML independiente, e imprimir
+   desde ahí. Antes de generarlo se pregunta qué tienda se quiere (o todas),
+   y el resultado es un calendario mensual en cuadrícula (no una lista),
+   pensado para caber en una hoja A4 apaisada. */
+const PRINT_DOC_CSS = `
+  @page{ size: A4 landscape; margin: 10mm; }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#111; background:#fff; margin:0; padding:14px;}
+  h1{font-size:16px; margin:0 0 2px;}
+  h2{font-size:12px; font-weight:600; margin:0 0 10px; color:#444;}
+  .cal-weekdays{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:4px;}
+  .cal-weekdays div{text-align:center; font-size:10px; font-weight:700; color:#666; text-transform:uppercase;}
+  .cal-print-grid{display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; gap:4px;}
+  .cal-print-cell{border:1px solid #ccc; border-radius:4px; padding:4px 5px; overflow:hidden; min-height:72px;}
+  .cal-print-cell.empty{border-color:transparent;}
+  .cal-print-cell.holiday{background:#f4f4f4;}
+  .cal-day-num{font-size:11px; font-weight:700; margin-bottom:2px;}
+  .cal-entry{font-size:9.5px; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .cal-note{font-size:8px; font-style:italic; color:#777; margin-top:2px;}
+  .print-generated{margin-top:10px; font-size:9px; color:#888;}
+  @media print{ body{padding:0;} }
+`;
+function buildPrintCalendarHtml(storeFilter){
   const y = state.calYear, m = state.calMonth;
+  const firstDay = new Date(y, m, 1);
+  const startWeekday = (firstDay.getDay()+6)%7; // lunes=0
   const daysInMonth = new Date(y, m+1, 0).getDate();
-  const filterId = state.empFilter;
-  const filterName = filterId==='todos' ? '' : empName(filterId);
-  const diasSemana = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-  let rowsHtml = '';
+  const diasSemana = ['L','M','X','J','V','S','D'];
+
+  let cellsHtml = '';
+  for(let i=0; i<startWeekday; i++) cellsHtml += `<div class="cal-print-cell empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
     const key = dateKey(y,m,d);
     const wd = new Date(y,m,d).getDay();
     const esFestivo = wd===0 || !!DATA.holidays[key];
     let entries = getEntriesForDate(key);
-    if(filterId !== 'todos') entries = entries.filter(en=>en.empId===filterId);
+    if(storeFilter && storeFilter !== 'todos') entries = entries.filter(en=>en.tienda===storeFilter);
     const note = DATA.notes[key];
-    const entriesHtml = entries.length
-      ? entries.map(en=>{
-          const st = SHIFT_TYPES[en.tipo];
-          const horas = st.hasHours
-            ? `${en.ini}–${en.fin}${en.tienda ? ' · ' + (STORE_BY_CODE[en.tienda]?.name || en.tienda) : ''}`
-            : st.label;
-          return `<div class="print-entry"><b>${empName(en.empId)}</b> — ${horas}</div>`;
-        }).join('')
-      : '<span class="print-empty">—</span>';
-    rowsHtml += `<tr class="${esFestivo ? 'print-holiday' : ''}">
-      <td class="print-daycell">${d}<span class="print-wd">${diasSemana[wd]}</span></td>
-      <td>${entriesHtml}${note ? `<div class="print-note">${note}</div>` : ''}</td>
-    </tr>`;
+    const entriesHtml = entries.map(en=>`<div class="cal-entry">${empName(en.empId)} ${en.tipo}</div>`).join('');
+    cellsHtml += `<div class="cal-print-cell${esFestivo ? ' holiday' : ''}">
+      <div class="cal-day-num">${d}</div>
+      ${entriesHtml}
+      ${note ? `<div class="cal-note">📝 ${note.length>28 ? note.slice(0,28)+'…' : note}</div>` : ''}
+    </div>`;
   }
-  document.getElementById('printSheet').innerHTML = `
+  const storeLabel = (storeFilter && storeFilter!=='todos') ? (STORE_BY_CODE[storeFilter]?.name || storeFilter) : 'Todas las tiendas';
+  return `
     <h1>Cuadrante Ópticas Florida</h1>
-    <h2>${monthLabel(y,m)}${filterName ? ' · ' + filterName : ''}</h2>
-    <table class="print-table"><tbody>${rowsHtml}</tbody></table>
+    <h2>${monthLabel(y,m)} · ${storeLabel}</h2>
+    <div class="cal-weekdays">${diasSemana.map(d=>`<div>${d}</div>`).join('')}</div>
+    <div class="cal-print-grid">${cellsHtml}</div>
     <p class="print-generated">Generado el ${new Date().toLocaleDateString('es-ES')}</p>
   `;
 }
+function openPrintWindow(fullHtml, filenameHint){
+  // Se abre síncronamente dentro del propio click (del botón de la tienda elegida) para que ningún navegador, incluido Safari, lo bloquee como ventana emergente.
+  const w = window.open('', '_blank');
+  if(w){
+    w.document.open();
+    w.document.write(fullHtml);
+    w.document.close();
+    setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 250);
+  } else {
+    // Si el navegador ha bloqueado la ventana nueva, ofrecemos el mismo contenido como archivo para abrirlo aparte.
+    const blob = new Blob([fullHtml], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filenameHint}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    alert('El navegador ha bloqueado la ventana de impresión. Se ha descargado un archivo con el cuadrante: ábrelo y, desde ahí, usa "Compartir" → "Imprimir".');
+  }
+}
+function generateAndPrint(storeFilter){
+  const fullHtml = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Cuadrante Ópticas Florida</title><style>${PRINT_DOC_CSS}</style></head><body>${buildPrintCalendarHtml(storeFilter)}</body></html>`;
+  const storeSlug = (storeFilter && storeFilter!=='todos') ? storeFilter.toLowerCase() : 'todas';
+  openPrintWindow(fullHtml, `cuadrante-${monthLabel(state.calYear, state.calMonth).replace(/\s+/g,'-')}-${storeSlug}`);
+}
 document.getElementById('printBtn').addEventListener('click', ()=>{
-  buildPrintSheet();
-  window.print();
+  const list = document.getElementById('printStoreList');
+  const opciones = [{code:'todos', name:'Todas las tiendas'}, ...STORES];
+  list.innerHTML = opciones.map(o=>`<button data-store="${o.code}">${o.name}</button>`).join('');
+  list.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.getElementById('printModal').hidden = true;
+      generateAndPrint(btn.dataset.store);
+    });
+  });
+  document.getElementById('printModal').hidden = false;
+});
+document.getElementById('printModalCancel').addEventListener('click', ()=>{
+  document.getElementById('printModal').hidden = true;
 });
 
 function sizeCalendarCells(grid, rowCount){
