@@ -154,7 +154,9 @@ button{cursor:pointer;}
 .day-cell .dots{display:flex; gap:4px; align-items:center; justify-content:center;}
 .day-cell .dots span{width:6px; height:6px; border-radius:50%; opacity:.9;}
 .day-cell .emp-tags{width:100%; display:flex; flex-wrap:wrap; gap:2px; align-items:center; justify-content:center;}
-.day-cell .emp-tag{font-size:6.8px; font-weight:700; padding:1.5px 3px; border-radius:4px; border:1px solid; line-height:1.25; white-space:nowrap;}
+.day-cell .emp-tag{display:inline-flex; align-items:center; gap:2px; font-size:6.8px; font-weight:700; padding:1.5px 3px; border-radius:4px; border:1px solid; line-height:1.25; white-space:nowrap;}
+.day-cell .emp-tag .store-dot{width:5px; height:5px; border-radius:50%; flex:0 0 auto;}
+.day-cell .emp-tag .store-dots{display:inline-flex; gap:1px; flex:0 0 auto;}
 .day-cell .emp-tag.more{background:var(--surface-2); border-color:var(--border); color:var(--text-dim); font-weight:700;}
 .day-cell .note-mark{position:absolute; top:5px; right:6px; width:5px; height:5px; border-radius:50%; background:var(--accent);}
 .day-cell .note-preview{font-size:8px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; margin-top:1px; text-align:center;}
@@ -872,6 +874,21 @@ function dotStyle(code){
   const k = code.toLowerCase();
   return `background:rgb(var(--${k}-rgb));`;
 }
+function storeDotsHtml(b){
+  // Punto(s) de color de tienda para identificar de un vistazo dónde trabaja
+  // cada persona en la vista "Todos" (un turno Partido en dos tiendas distintas
+  // muestra dos puntos).
+  let codes = [];
+  if(b.tipo==='P' && b.tramos){
+    codes = b.tramos.map(tr=>tr && tr.tienda).filter(Boolean);
+  } else if(b.tienda && b.tienda!=='-'){
+    codes = [b.tienda];
+  }
+  codes = [...new Set(codes)];
+  if(!codes.length) return '';
+  if(codes.length===1) return `<span class="store-dot" style="${dotStyle(codes[0])}"></span>`;
+  return `<span class="store-dots">${codes.map(c=>`<span class="store-dot" style="${dotStyle(c)}"></span>`).join('')}</span>`;
+}
 
 /* ---------- Exportar / imprimir el mes ----------
    Ojo: NO usamos window.print() sobre la propia app. Cuando la app está
@@ -1211,7 +1228,7 @@ function renderCalendar(){
           const rest = empIds.length - shown.length;
           const tagsHtml = shown.map(eid=>{
             const b = day[eid];
-            return `<div class="emp-tag" style="${chipTint(b.tipo)}">${empShort(eid)} ${b.tipo}</div>`;
+            return `<div class="emp-tag" style="${chipTint(b.tipo)}">${storeDotsHtml(b)}${empShort(eid)} ${b.tipo}</div>`;
           }).join('');
           const moreHtml = rest>0 ? `<div class="emp-tag more">+${rest}</div>` : '';
           fillHtml = `<div class="emp-tags">${tagsHtml}${moreHtml}</div>`;
