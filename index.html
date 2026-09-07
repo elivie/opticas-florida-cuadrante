@@ -80,6 +80,14 @@ button{cursor:pointer;}
 .topbar{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   padding:12px 16px; background:#e7e9ec; border-bottom:1px solid #d7dade;
+  /* En el iPhone, cuando la app está anclada a la pantalla de inicio (o en
+     pantalla completa), esta barra se dibuja detrás de la isla dinámica /
+     muesca si no se le da un margen extra arriba. env(safe-area-inset-*)
+     es ese margen que da el propio iPhone (0 en un navegador normal, o en
+     un móvil sin muesca), así que aquí no hace nada raro en ningún otro caso. */
+  padding-top:calc(12px + env(safe-area-inset-top));
+  padding-left:calc(16px + env(safe-area-inset-left));
+  padding-right:calc(16px + env(safe-area-inset-right));
 }
 :root[data-theme="light"] .topbar{background:#e7e9ec; border-bottom-color:#d7dade;}
 .topbar img.logo{height:28px; display:block;}
@@ -190,11 +198,12 @@ button{cursor:pointer;}
 }
 .sheet{
   background:var(--surface); width:100%; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0;
-  padding:18px 18px 28px; box-shadow:var(--shadow); margin:0 auto; max-width:720px;
+  padding:18px 18px calc(28px + env(safe-area-inset-bottom)); box-shadow:var(--shadow); margin:0 auto; max-width:720px;
 }
 .sheet-handle{width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 14px;}
 .sheet-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
-.sheet-header h3{margin:0; font-size:17px; text-transform:capitalize;}
+.sheet-header h3{margin:0; font-size:17px;}
+.sheet-header h3::first-letter{text-transform:uppercase;}
 .sheet-header button.close{background:none; border:none; color:var(--text-dim); font-size:22px; line-height:1;}
 
 .field-label{font-size:12px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.03em; margin:16px 0 8px;}
@@ -239,13 +248,78 @@ select.emp-picker{
 /* ---------- Citas ---------- */
 .date-input{width:100%; padding:11px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:14px; margin-bottom:14px;}
 .cita-item{display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:8px;}
-.cita-item .hora{font-weight:800; color:var(--accent); font-size:14px; min-width:48px;}
-.cita-item .texto{flex:1; font-size:14px;}
-.cita-item button{background:none; border:none; color:var(--text-dim); font-size:16px;}
+.cita-item .hora{font-weight:800; color:var(--accent); font-size:14px; min-width:48px; padding-top:1px;}
+.cita-item-body{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px;}
+.cita-item .texto{font-size:14px; line-height:1.4; overflow-wrap:anywhere;}
+.cita-item .cita-tel{
+  display:inline-flex; align-items:center; gap:5px; width:fit-content;
+  font-size:12.5px; font-weight:700; color:var(--accent); text-decoration:none;
+  background:var(--surface-3); border:1px solid var(--border); padding:3px 9px; border-radius:20px;
+}
+.cita-item .cita-tel:active{opacity:.65;}
+.cita-item button{background:none; border:none; color:var(--text-dim); font-size:16px; flex:0 0 auto;}
 .cita-form{display:flex; gap:8px; margin-top:14px;}
 .cita-form input[type=time]{width:90px; padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text);}
-.cita-form input[type=text]{flex:1; padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text);}
+.cita-form input[type=tel]{flex:1; min-width:0; padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text);}
+.cita-texto-input{width:100%; padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); margin-top:8px;}
 .empty-state{color:var(--text-dim); font-size:14px; text-align:center; padding:30px 10px;}
+
+/* ---------- Resumen semanal de citas ---------- */
+.week-modal-card{max-width:400px; padding:22px 18px;}
+.week-modal-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;}
+.week-nav-btn{
+  width:34px; height:34px; border-radius:50%; border:1px solid var(--border); background:var(--surface-2);
+  color:var(--text); font-size:16px; flex:0 0 auto;
+}
+.week-nav-btn:active{background:var(--surface-3);}
+.week-modal-range{flex:1; text-align:center; font-size:15px; font-weight:700; line-height:1.3;}
+.week-day-card{
+  border:1px solid var(--border); border-radius:14px; padding:12px 14px; margin-bottom:9px;
+  background:var(--surface-2); text-align:left; width:100%; transition:background .12s;
+}
+.week-day-card:active{background:var(--surface-3);}
+.week-day-card.today{border-color:var(--accent); border-width:1.5px;}
+.week-day-card.sunday{background:rgba(239,68,68,.07); border-color:rgba(239,68,68,.28);}
+.week-day-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:2px;}
+.week-day-name{font-size:13px; font-weight:700; text-transform:capitalize; color:var(--text);}
+.week-day-name .num{color:var(--text-dim); font-weight:600;}
+.week-day-count{font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--surface-3); color:var(--text-dim); flex:0 0 auto;}
+.week-day-count.has{background:var(--accent); color:var(--accent-contrast);}
+.week-day-empty{font-size:12px; color:var(--text-dim); font-style:italic; margin-top:4px;}
+.week-day-items{display:flex; flex-direction:column; gap:3px; margin-top:6px;}
+.week-day-item{font-size:12.5px; color:var(--text); display:flex; gap:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.week-day-item .hora{font-weight:800; color:var(--accent); flex:0 0 auto; min-width:38px;}
+.week-day-item .texto{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.week-day-more{font-size:11px; color:var(--text-dim); margin-top:3px; font-weight:600;}
+.week-total-note{text-align:center; font-size:12px; color:var(--text-dim); margin:2px 0 14px;}
+
+/* ---------- Barra de botones de Citas + buscador ---------- */
+.cita-toolbar{display:flex; gap:8px; margin-bottom:14px;}
+.cita-toolbar .grow{flex:1;}
+.cita-toolbar .icon-btn{flex:0 0 46px; font-size:17px; padding:10px 0;}
+
+.search-modal-card{max-width:400px; padding:22px 18px; display:flex; flex-direction:column; max-height:85vh;}
+#citaSearchResults{overflow-y:auto; margin-top:14px;}
+.search-result{
+  display:block; width:100%; text-align:left; border:1px solid var(--border); border-radius:12px;
+  padding:10px 12px; margin-bottom:8px; background:var(--surface-2);
+}
+.search-result:active{background:var(--surface-3);}
+.search-result-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;}
+.search-result-store{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-dim);}
+.search-result-store .search-dot{width:7px; height:7px; border-radius:50%; flex:0 0 auto;}
+.search-result-date{font-size:11px; color:var(--text-dim); font-weight:600; white-space:nowrap; flex:0 0 auto;}
+.search-result-texto{font-size:13.5px; color:var(--text); line-height:1.35; overflow-wrap:anywhere;}
+.search-result-tel{font-size:12px; font-weight:700; color:var(--text-dim); margin-top:4px; display:flex; align-items:center; gap:5px;}
+.search-result-texto mark, .search-result-tel mark{background:var(--accent); color:var(--accent-contrast); border-radius:3px; padding:0 2px; font-weight:700;}
+.search-more-note{text-align:center; font-size:11px; color:var(--text-dim); margin-top:6px; font-weight:600;}
+
+/* ---------- Aviso de turnos que se solapan (Partido en dos tiendas) ---------- */
+.tramo-warning{
+  display:flex; gap:6px; align-items:flex-start; font-size:12px; font-weight:600; line-height:1.4;
+  color:#ef4444; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3);
+  border-radius:9px; padding:8px 10px; margin-top:10px;
+}
 
 /* ---------- Ajustes ---------- */
 .settings-card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:16px;}
@@ -307,6 +381,32 @@ select.emp-picker{
     </div>
   </div>
 
+  <!-- Modal resumen semanal de citas -->
+  <div id="citaWeekModal" class="modal-overlay" hidden>
+    <div class="modal-card week-modal-card">
+      <div class="week-modal-head">
+        <button id="citaWeekPrev" class="week-nav-btn" aria-label="Semana anterior">‹</button>
+        <div class="week-modal-range" id="citaWeekRangeLabel"></div>
+        <button id="citaWeekNext" class="week-nav-btn" aria-label="Semana siguiente">›</button>
+      </div>
+      <div class="chip-row" id="citaWeekStoreChips" style="margin-bottom:14px;"></div>
+      <div class="week-total-note" id="citaWeekTotalNote"></div>
+      <div id="citaWeekBody"></div>
+      <button class="btn" id="citaWeekCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Modal buscador de citas -->
+  <div id="citaSearchModal" class="modal-overlay" hidden>
+    <div class="modal-card search-modal-card">
+      <h2>Buscar cita</h2>
+      <p class="hint">Busca por nombre, teléfono o cualquier palabra, en las tres tiendas a la vez.</p>
+      <input type="text" class="date-input" id="citaSearchInput" placeholder="Ej: 757583838 o Pons" autocomplete="off" style="margin-bottom:0;">
+      <div id="citaSearchResults"></div>
+      <button class="btn" id="citaSearchCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+    </div>
+  </div>
+
   <!-- App -->
   <div id="shell" hidden>
     <header class="topbar">
@@ -351,11 +451,16 @@ select.emp-picker{
       <section id="tab-citas" class="tab-panel">
         <div class="chip-row" id="citaStoreChips"></div>
         <input type="date" class="date-input" id="citaDate">
+        <div class="cita-toolbar">
+          <button class="btn grow" id="citaWeekBtn">📅 Ver resumen semanal</button>
+          <button class="btn icon-btn" id="citaSearchBtn" aria-label="Buscar cita">🔍</button>
+        </div>
         <div id="citaList"></div>
         <div class="cita-form">
           <input type="time" id="citaHora" value="10:00">
-          <input type="text" id="citaTexto" placeholder="Ej: Sra. Pons, tlf 757583838, revisión vista">
+          <input type="tel" id="citaTelefono" placeholder="Teléfono (opcional)" inputmode="tel" autocomplete="off">
         </div>
+        <input type="text" class="cita-texto-input" id="citaTexto" placeholder="Ej: Sra. Pons, revisión de vista">
         <button class="btn primary" style="width:100%; margin-top:8px;" id="addCitaBtn">Añadir cita</button>
       </section>
 
@@ -565,6 +670,7 @@ let state = {
   calMonth: new Date().getMonth(),
   empFilter: 'todos',
   citaStore: 'ALC',
+  citaWeekAnchor: null, // lunes (YYYY-MM-DD) de la semana que se ve en el resumen semanal de citas
   who: localStorage.getItem(WHO_KEY) || null,
   editMode: false,
   editBrush: 'M',
@@ -888,6 +994,24 @@ function storeDotsHtml(b){
   if(!codes.length) return '';
   if(codes.length===1) return `<span class="store-dot" style="${dotStyle(codes[0])}"></span>`;
   return `<span class="store-dots">${codes.map(c=>`<span class="store-dot" style="${dotStyle(c)}"></span>`).join('')}</span>`;
+}
+
+/* ---------- Aviso de tramos que se solapan (turno Partido) ----------
+   Un turno Partido tiene dos tramos con hora y tienda propias. Si las horas
+   de los dos tramos se pisan (por ejemplo 09:00–14:00 en Alcúdia y
+   12:00–18:00 en Pollença), esa persona no podría estar físicamente en los
+   dos sitios a la vez: seguramente es un error al rellenar el turno. */
+function hhmmToMinutes(hhmm){
+  if(!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
+  const [h,mn] = hhmm.split(':').map(Number);
+  return h*60+mn;
+}
+function tramosOverlap(t1, t2){
+  const i1 = hhmmToMinutes(t1.ini), f1 = hhmmToMinutes(t1.fin);
+  const i2 = hhmmToMinutes(t2.ini), f2 = hhmmToMinutes(t2.fin);
+  if(i1===null || f1===null || i2===null || f2===null) return false;
+  if(f1<=i1 || f2<=i2) return false; // horario incompleto o incoherente, no lo evaluamos aquí
+  return Math.max(i1,i2) < Math.min(f1,f2);
 }
 
 /* ---------- Exportar / imprimir el mes ----------
@@ -1473,6 +1597,26 @@ function wireEditorBlock(container, dateKeyStr, empId, existing, pickerMode){
     return STORES.map(s=>`<option value="${s.code}" ${selected===s.code?'selected':''}>${s.name}</option>`).join('');
   }
 
+  function readTramosFromForm(){
+    return [
+      {tienda:block.querySelector('.tramo1-store').value, ini:block.querySelector('.tramo1-ini').value, fin:block.querySelector('.tramo1-fin').value},
+      {tienda:block.querySelector('.tramo2-store').value, ini:block.querySelector('.tramo2-ini').value, fin:block.querySelector('.tramo2-fin').value}
+    ];
+  }
+  function updateTramoWarning(){
+    const warnEl = block.querySelector('.tramo-warning');
+    if(!warnEl) return;
+    const [t1, t2] = readTramosFromForm();
+    if(tramosOverlap(t1, t2)){
+      const n1 = STORE_BY_CODE[t1.tienda]?.name || t1.tienda;
+      const n2 = STORE_BY_CODE[t2.tienda]?.name || t2.tienda;
+      warnEl.innerHTML = `⚠️ Los dos tramos se solapan: ${t1.ini}–${t1.fin} en ${n1} y ${t2.ini}–${t2.fin} en ${n2}. No puede estar en dos tiendas a la vez.`;
+      warnEl.hidden = false;
+    } else {
+      warnEl.hidden = true;
+    }
+  }
+
   function renderDetail(){
     const wrap = block.querySelector('.detail-wrap');
     if(!currentType || !SHIFT_TYPES[currentType].hasHours){ wrap.innerHTML=''; return; }
@@ -1485,7 +1629,13 @@ function wireEditorBlock(container, dateKeyStr, empId, existing, pickerMode){
         <div class="hour-row"><input type="time" class="tramo1-ini" value="${v[0].ini||''}"><input type="time" class="tramo1-fin" value="${v[0].fin||''}"></div>
         <div class="muted-note" style="margin:10px 0 4px;">Tramo 2</div>
         <select class="store-select tramo2-store">${storeOptsHtml(v[1].tienda||tiendaHab)}</select>
-        <div class="hour-row"><input type="time" class="tramo2-ini" value="${v[1].ini||''}"><input type="time" class="tramo2-fin" value="${v[1].fin||''}"></div>`;
+        <div class="hour-row"><input type="time" class="tramo2-ini" value="${v[1].ini||''}"><input type="time" class="tramo2-fin" value="${v[1].fin||''}"></div>
+        <div class="tramo-warning" hidden></div>`;
+      ['tramo1-store','tramo1-ini','tramo1-fin','tramo2-store','tramo2-ini','tramo2-fin'].forEach(cls=>{
+        const el = wrap.querySelector('.'+cls);
+        if(el){ el.addEventListener('input', updateTramoWarning); el.addEventListener('change', updateTramoWarning); }
+      });
+      updateTramoWarning();
     } else {
       const t = tpl[currentType] || {};
       const v = (currentData && currentData.tipo===currentType) ? currentData : {tienda:tiendaHab, ini:t.ini||'', fin:t.fin||''};
@@ -1510,10 +1660,14 @@ function wireEditorBlock(container, dateKeyStr, empId, existing, pickerMode){
     if(!currentType){ alert('Elige un tipo de turno (M/T/P/V/B).'); return; }
     let bloqueOut;
     if(currentType==='P'){
-      bloqueOut = { tipo:'P', tramos:[
-        {tienda:block.querySelector('.tramo1-store').value, ini:block.querySelector('.tramo1-ini').value, fin:block.querySelector('.tramo1-fin').value},
-        {tienda:block.querySelector('.tramo2-store').value, ini:block.querySelector('.tramo2-ini').value, fin:block.querySelector('.tramo2-fin').value}
-      ]};
+      const [t1, t2] = readTramosFromForm();
+      bloqueOut = { tipo:'P', tramos:[t1, t2] };
+      if(tramosOverlap(t1, t2)){
+        const n1 = STORE_BY_CODE[t1.tienda]?.name || t1.tienda;
+        const n2 = STORE_BY_CODE[t2.tienda]?.name || t2.tienda;
+        const ok = confirm(`Los dos tramos de hoy se solapan en horario:\n\nTramo 1: ${t1.ini}–${t1.fin} en ${n1}\nTramo 2: ${t2.ini}–${t2.fin} en ${n2}\n\n${empName(empId)} no podría estar en dos tiendas a la vez. ¿Seguro que quieres guardarlo así?`);
+        if(!ok) return;
+      }
     } else if(SHIFT_TYPES[currentType].hasHours){
       bloqueOut = { tipo:currentType, tienda:block.querySelector('.solo-store').value, ini:block.querySelector('.solo-ini').value, fin:block.querySelector('.solo-fin').value };
     } else {
@@ -1640,13 +1794,21 @@ function renderCitaList(){
   wrap.innerHTML = list.map((c,i)=>`
     <div class="cita-item">
       <span class="hora">${c.hora}</span>
-      <span class="texto">${c.texto}</span>
+      <div class="cita-item-body">
+        <span class="texto">${escHtml(c.texto)}</span>
+        ${c.telefono ? `<a class="cita-tel" href="tel:${telHref(c.telefono)}">📞 ${escHtml(c.telefono)}</a>` : ''}
+      </div>
       <button data-i="${i}">&times;</button>
     </div>`).join('');
   wrap.querySelectorAll('button[data-i]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const arr = DATA.citas[state.citaStore][dateInput.value];
-      arr.splice(Number(btn.dataset.i),1);
+      // "list" está ordenada por hora (una copia), así que su índice no tiene por
+      // qué coincidir con la posición real en el array guardado; buscamos el
+      // objeto exacto por referencia para no borrar la cita equivocada.
+      const target = list[Number(btn.dataset.i)];
+      const rawIdx = arr.indexOf(target);
+      if(rawIdx > -1) arr.splice(rawIdx, 1);
       saveData();
       renderCitaList();
     });
@@ -1660,15 +1822,236 @@ function renderCitas(){
   renderCitaList();
 }
 
+/* ---------- Resumen semanal de citas ---------- */
+function addDaysToKey(dateStr, delta){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate()+delta);
+  return dateKey(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+function mondayOfWeek(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const wd = (new Date(y, m-1, d).getDay()+6)%7; // lunes=0
+  return addDaysToKey(dateStr, -wd);
+}
+function weekRangeLabel(mondayKey){
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const sundayKey = addDaysToKey(mondayKey, 6);
+  const [y1,m1,d1] = mondayKey.split('-').map(Number);
+  const [y2,m2,d2] = sundayKey.split('-').map(Number);
+  if(y1===y2 && m1===m2) return `${d1} – ${d2} de ${meses[m1-1]} ${y1}`;
+  if(y1===y2) return `${d1} de ${meses[m1-1]} – ${d2} de ${meses[m2-1]} ${y1}`;
+  return `${d1} de ${meses[m1-1]} ${y1} – ${d2} de ${meses[m2-1]} ${y2}`;
+}
+const WEEKDAY_NAMES = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+
+function renderCitaWeekStoreChips(){
+  const wrap = document.getElementById('citaWeekStoreChips');
+  wrap.innerHTML = STORES.map(s=>`<button class="chip ${state.citaStore===s.code?'active':''}" data-code="${s.code}">${s.name}</button>`).join('');
+  wrap.querySelectorAll('.chip').forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      state.citaStore = ch.dataset.code;
+      renderCitaStoreChips(); // mantiene sincronizados los chips de tienda de la pestaña Citas
+      renderCitaList();
+      renderCitaWeekSummary();
+    });
+  });
+}
+
+function renderCitaWeekSummary(){
+  if(!state.citaWeekAnchor) state.citaWeekAnchor = mondayOfWeek(document.getElementById('citaDate').value || todayKey());
+  document.getElementById('citaWeekRangeLabel').textContent = weekRangeLabel(state.citaWeekAnchor);
+  renderCitaWeekStoreChips();
+
+  const today = todayKey();
+  let totalCitas = 0;
+  let html = '';
+  for(let i=0; i<7; i++){
+    const key = addDaysToKey(state.citaWeekAnchor, i);
+    const d = Number(key.split('-')[2]);
+    const isToday = key===today;
+    const isSunday = i===6;
+    const list = (DATA.citas[state.citaStore][key] || []).slice().sort((a,b)=>a.hora.localeCompare(b.hora));
+    totalCitas += list.length;
+    const maxShow = 3;
+    const shown = list.slice(0, maxShow);
+    const rest = list.length - shown.length;
+    const itemsHtml = shown.map(c=>{
+      const texto = c.texto.length>34 ? c.texto.slice(0,34)+'…' : c.texto;
+      const telSuffix = c.telefono ? ` · 📞 ${escHtml(c.telefono)}` : '';
+      return `<div class="week-day-item"><span class="hora">${c.hora}</span><span class="texto">${escHtml(texto)}${telSuffix}</span></div>`;
+    }).join('');
+    const moreHtml = rest>0 ? `<div class="week-day-more">+${rest} más</div>` : '';
+    const bodyHtml = list.length
+      ? `<div class="week-day-items">${itemsHtml}</div>${moreHtml}`
+      : `<div class="week-day-empty">Sin citas</div>`;
+    html += `<button class="week-day-card ${isToday?'today':''} ${isSunday?'sunday':''}" data-date="${key}">
+      <div class="week-day-head">
+        <div class="week-day-name">${WEEKDAY_NAMES[i]} <span class="num">${d}</span></div>
+        <div class="week-day-count ${list.length?'has':''}">${list.length}</div>
+      </div>
+      ${bodyHtml}
+    </button>`;
+  }
+  document.getElementById('citaWeekBody').innerHTML = html;
+
+  const storeName = STORE_BY_CODE[state.citaStore]?.name || state.citaStore;
+  document.getElementById('citaWeekTotalNote').textContent = totalCitas===0
+    ? `Sin citas esta semana en ${storeName}`
+    : `${totalCitas} cita${totalCitas===1?'':'s'} esta semana en ${storeName}`;
+
+  document.getElementById('citaWeekBody').querySelectorAll('.week-day-card[data-date]').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      document.getElementById('citaDate').value = card.dataset.date;
+      document.getElementById('citaWeekModal').hidden = true;
+      renderCitaList();
+    });
+  });
+}
+
+function openCitaWeekModal(){
+  const base = document.getElementById('citaDate').value || todayKey();
+  state.citaWeekAnchor = mondayOfWeek(base);
+  renderCitaWeekSummary();
+  document.getElementById('citaWeekModal').hidden = false;
+}
+
+document.getElementById('citaWeekBtn').addEventListener('click', openCitaWeekModal);
+document.getElementById('citaWeekPrev').addEventListener('click', ()=>{
+  state.citaWeekAnchor = addDaysToKey(state.citaWeekAnchor, -7);
+  renderCitaWeekSummary();
+});
+document.getElementById('citaWeekNext').addEventListener('click', ()=>{
+  state.citaWeekAnchor = addDaysToKey(state.citaWeekAnchor, 7);
+  renderCitaWeekSummary();
+});
+document.getElementById('citaWeekCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('citaWeekModal').hidden = true;
+});
+
+/* ---------- Buscador de citas (todas las tiendas) ---------- */
+function escHtml(str){
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function telHref(phone){
+  // Deja solo dígitos y un posible "+" inicial, para que "tel:" siempre reciba
+  // algo llamable aunque el teléfono se haya escrito con espacios o guiones.
+  return String(phone||'').replace(/[^\d+]/g, '');
+}
+function normalizeSearch(str){
+  return String(str).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+function highlightMatch(texto, rawQuery){
+  const normTexto = normalizeSearch(texto);
+  const normQuery = normalizeSearch(rawQuery);
+  if(!normQuery) return escHtml(texto);
+  const idx = normTexto.indexOf(normQuery);
+  if(idx<0) return escHtml(texto);
+  const before = texto.slice(0, idx);
+  const match = texto.slice(idx, idx+normQuery.length);
+  const after = texto.slice(idx+normQuery.length);
+  return `${escHtml(before)}<mark>${escHtml(match)}</mark>${escHtml(after)}`;
+}
+function fmtDateShort(key){
+  const [y,m,d] = key.split('-').map(Number);
+  const diasAbrev = ['dom','lun','mar','mié','jue','vie','sáb'];
+  const mesesAbrev = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const dt = new Date(y,m-1,d);
+  return `${diasAbrev[dt.getDay()]} ${d} ${mesesAbrev[m-1]}`;
+}
+function onlyDigits(str){
+  return String(str||'').replace(/\D/g, '');
+}
+function searchCitas(rawQuery){
+  const q = rawQuery.trim();
+  if(!q) return [];
+  const normQuery = normalizeSearch(q);
+  // Si lo que se busca "parece" un teléfono, comparamos también solo por
+  // dígitos: así "611222333" encuentra un teléfono guardado como
+  // "611 222 333" o "611-222-333", sin que el formato tenga que coincidir.
+  const digitsQuery = onlyDigits(q);
+  const results = [];
+  STORES.forEach(store=>{
+    const byDate = DATA.citas[store.code] || {};
+    Object.keys(byDate).forEach(fecha=>{
+      (byDate[fecha]||[]).forEach(c=>{
+        const haystack = normalizeSearch(`${c.texto} ${c.telefono||''}`);
+        const textMatch = haystack.includes(normQuery);
+        const phoneMatch = digitsQuery.length>=3 && onlyDigits(c.telefono).includes(digitsQuery);
+        if(textMatch || phoneMatch){
+          results.push({tienda:store.code, fecha, hora:c.hora, texto:c.texto, telefono:c.telefono||''});
+        }
+      });
+    });
+  });
+  results.sort((a,b)=> (a.fecha+a.hora).localeCompare(b.fecha+b.hora));
+  return results;
+}
+function renderCitaSearchResults(){
+  const q = document.getElementById('citaSearchInput').value;
+  const wrap = document.getElementById('citaSearchResults');
+  if(!q.trim()){
+    wrap.innerHTML = `<div class="empty-state">Escribe un nombre, un teléfono o cualquier palabra para buscar en las tres tiendas.</div>`;
+    return;
+  }
+  const results = searchCitas(q);
+  if(!results.length){
+    wrap.innerHTML = `<div class="empty-state">Sin resultados para "${escHtml(q.trim())}".</div>`;
+    return;
+  }
+  const CAP = 80;
+  const shown = results.slice(0, CAP);
+  const itemsHtml = shown.map(r=>{
+    const store = STORE_BY_CODE[r.tienda];
+    const telHtml = r.telefono ? `<div class="search-result-tel">📞 ${highlightMatch(r.telefono, q)}</div>` : '';
+    return `<button class="search-result" data-tienda="${r.tienda}" data-fecha="${r.fecha}">
+      <div class="search-result-top">
+        <span class="search-result-store"><span class="search-dot" style="${dotStyle(r.tienda)}"></span>${store?store.name:r.tienda}</span>
+        <span class="search-result-date">${fmtDateShort(r.fecha)} · ${r.hora}</span>
+      </div>
+      <div class="search-result-texto">${highlightMatch(r.texto, q)}</div>
+      ${telHtml}
+    </button>`;
+  }).join('');
+  const moreHtml = results.length>CAP
+    ? `<div class="search-more-note">Mostrando los primeros ${CAP} de ${results.length} resultados — afina la búsqueda para ver menos.</div>`
+    : '';
+  wrap.innerHTML = itemsHtml + moreHtml;
+  wrap.querySelectorAll('.search-result[data-fecha]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.citaStore = btn.dataset.tienda;
+      renderCitaStoreChips();
+      document.getElementById('citaDate').value = btn.dataset.fecha;
+      document.getElementById('citaSearchModal').hidden = true;
+      renderCitaList();
+    });
+  });
+}
+document.getElementById('citaSearchBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('citaSearchInput');
+  input.value = '';
+  renderCitaSearchResults();
+  document.getElementById('citaSearchModal').hidden = false;
+  setTimeout(()=>input.focus(), 50);
+});
+document.getElementById('citaSearchInput').addEventListener('input', renderCitaSearchResults);
+document.getElementById('citaSearchCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('citaSearchModal').hidden = true;
+});
+
 document.getElementById('citaDate').addEventListener('change', renderCitaList);
 document.getElementById('addCitaBtn').addEventListener('click', ()=>{
   const hora = document.getElementById('citaHora').value;
   const texto = document.getElementById('citaTexto').value.trim();
+  const telefono = document.getElementById('citaTelefono').value.trim();
   if(!texto){ return; }
   const dateInput = document.getElementById('citaDate');
   if(!DATA.citas[state.citaStore][dateInput.value]) DATA.citas[state.citaStore][dateInput.value] = [];
-  DATA.citas[state.citaStore][dateInput.value].push({hora, texto});
+  const entry = {hora, texto};
+  if(telefono) entry.telefono = telefono;
+  DATA.citas[state.citaStore][dateInput.value].push(entry);
   document.getElementById('citaTexto').value = '';
+  document.getElementById('citaTelefono').value = '';
   saveData();
   renderCitaList();
 });
