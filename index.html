@@ -20,6 +20,7 @@
   --m:#fbbf24; --t:#38bdf8; --p:#f472b6; --l:#a78bfa; --v:#34d399; --b:#f87171;
   --alc:#3b82f6; --pol:#a855f7; --art:#14b8a6;
   --m-rgb:251,191,36; --t-rgb:56,189,248; --p-rgb:244,114,182; --l-rgb:167,139,250; --v-rgb:52,211,153; --b-rgb:248,113,113;
+  --pendiente-rgb:248,113,113; --senal-rgb:79,143,247; --pagado-rgb:52,211,153;
   --alc-rgb:59,130,246; --pol-rgb:168,85,247; --art-rgb:20,184,166;
   --shadow: 0 8px 24px rgba(0,0,0,.35);
 }
@@ -277,6 +278,39 @@ select.emp-picker{
 .cita-form-row2 input[type=text]{flex:1 1 auto;}
 .empty-state{color:var(--text-dim); font-size:14px; text-align:center; padding:30px 10px;}
 
+/* ---------- Avisos (pedidos listos para recoger) ---------- */
+.aviso-form{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
+.aviso-form input{padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); min-width:0;}
+.estado-btns{display:flex; gap:6px;}
+.estado-btn{flex:1; padding:9px 4px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-dim); font-size:12.5px; font-weight:700;}
+.estado-btn.selected[data-estado="pendiente"]{background:rgba(var(--pendiente-rgb),.16); border-color:rgba(var(--pendiente-rgb),.45); color:rgb(var(--pendiente-rgb));}
+.estado-btn.selected[data-estado="senal"]{background:rgba(var(--senal-rgb),.16); border-color:rgba(var(--senal-rgb),.45); color:rgb(var(--senal-rgb));}
+.estado-btn.selected[data-estado="pagado"]{background:rgba(var(--pagado-rgb),.16); border-color:rgba(var(--pagado-rgb),.45); color:rgb(var(--pagado-rgb));}
+.aviso-item{display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:8px;}
+.aviso-item .aviso-check{flex:0 0 auto; width:19px; height:19px; margin-top:2px; accent-color:var(--accent); cursor:pointer;}
+.aviso-item-body{flex:1; min-width:0;}
+.aviso-item-top{display:flex; flex-wrap:wrap; align-items:center; column-gap:9px; row-gap:4px;}
+.aviso-nombre{font-weight:700; font-size:14px;}
+.aviso-estado-badge{font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px; white-space:nowrap;}
+.aviso-estado-badge.pendiente{background:rgba(var(--pendiente-rgb),.16); color:rgb(var(--pendiente-rgb));}
+.aviso-estado-badge.senal{background:rgba(var(--senal-rgb),.16); color:rgb(var(--senal-rgb));}
+.aviso-estado-badge.pagado{background:rgba(var(--pagado-rgb),.16); color:rgb(var(--pagado-rgb));}
+.aviso-item .aviso-tel{
+  display:inline-flex; align-items:center; width:fit-content;
+  font-size:12.5px; font-weight:700; color:var(--accent); text-decoration:none;
+  background:var(--surface-3); border:1px solid var(--border); padding:3px 9px; border-radius:20px;
+}
+.aviso-item .aviso-tel:active{opacity:.65;}
+.aviso-nota{font-size:13px; color:var(--text-dim); line-height:1.4; margin-top:4px; overflow-wrap:anywhere;}
+.aviso-item button.aviso-del{background:none; border:none; color:var(--text-dim); font-size:16px; flex:0 0 auto;}
+.aviso-item.avisado{opacity:.55;}
+.aviso-item.avisado .aviso-nombre, .aviso-item.avisado .aviso-nota{text-decoration:line-through;}
+.aviso-resumen-row{display:flex; align-items:center; gap:8px; padding:9px 2px; border-bottom:1px solid var(--border);}
+.aviso-resumen-row:last-child{border-bottom:none;}
+.aviso-resumen-row.avisado{opacity:.55;}
+.aviso-resumen-row.avisado .aviso-resumen-nombre{text-decoration:line-through;}
+.aviso-resumen-nombre{flex:1; min-width:0; font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
 /* ---------- Resumen semanal de citas ---------- */
 .week-modal-card{max-width:400px; padding:22px 18px;}
 .week-modal-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;}
@@ -420,6 +454,16 @@ select.emp-picker{
     </div>
   </div>
 
+  <!-- Modal resumen de avisos -->
+  <div id="avisoResumenModal" class="modal-overlay" hidden>
+    <div class="modal-card week-modal-card">
+      <h2>Resumen de avisos</h2>
+      <div class="chip-row" id="avisoResumenStoreChips" style="margin-bottom:14px;"></div>
+      <div id="avisoResumenBody"></div>
+      <button class="btn" id="avisoResumenCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+    </div>
+  </div>
+
   <!-- App -->
   <div id="shell" hidden>
     <header class="topbar">
@@ -430,6 +474,7 @@ select.emp-picker{
     <nav class="tabs">
       <button class="tab active" data-tab="cuadrante">Cuadrante</button>
       <button class="tab" data-tab="citas">Citas</button>
+      <button class="tab" data-tab="avisos">Avisos</button>
       <button class="tab" data-tab="ajustes">Ajustes</button>
     </nav>
 
@@ -477,6 +522,24 @@ select.emp-picker{
           </div>
         </div>
         <button class="btn primary" style="width:100%; margin-top:8px;" id="addCitaBtn">Añadir cita</button>
+      </section>
+
+      <!-- AVISOS -->
+      <section id="tab-avisos" class="tab-panel">
+        <div class="chip-row" id="avisoStoreChips"></div>
+        <button class="btn" id="avisoResumenBtn" style="width:100%; margin-bottom:14px;">Resumen</button>
+        <div id="avisoList"></div>
+        <div class="aviso-form">
+          <input type="text" id="avisoNombre" placeholder="Nombre del cliente">
+          <input type="tel" id="avisoTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
+          <input type="text" id="avisoNota" placeholder="Nota (opcional)">
+          <div class="estado-btns" id="avisoEstadoBtns">
+            <button type="button" class="estado-btn" data-estado="pendiente">Pendiente</button>
+            <button type="button" class="estado-btn" data-estado="senal">Señal</button>
+            <button type="button" class="estado-btn" data-estado="pagado">Pagado</button>
+          </div>
+        </div>
+        <button class="btn primary" style="width:100%; margin-top:8px;" id="addAvisoBtn">Añadir aviso</button>
       </section>
 
       <!-- AJUSTES -->
@@ -537,6 +600,19 @@ select.emp-picker{
             <p class="muted-note">Sustituye TODO lo que hay ahora mismo por lo que había en el archivo, para todo el equipo y todos los dispositivos. Útil si se borra algo por error. No se puede deshacer.</p>
           </div>
           <p class="muted-note" id="restoreRestrictedNote" hidden>Solo un administrador puede restaurar una copia de seguridad. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
+        </div>
+
+        <div class="settings-card">
+          <h3>Copias automáticas</h3>
+          <p class="muted-note" style="margin-top:0;">Cada día se guarda sola una copia aparte, sin que nadie tenga que hacer nada. Se conservan los últimos 30 días, por si hace falta recuperar algo de un día concreto.</p>
+          <div id="autoBackupAdminBlock">
+            <select id="autoBackupDateSelect" class="tpl-select" style="width:100%; margin-bottom:8px;">
+              <option value="">Cargando fechas…</option>
+            </select>
+            <button class="btn danger" id="autoBackupRestoreBtn" style="width:100%;">Restaurar esta fecha</button>
+            <p class="muted-note">Sustituye TODO lo que hay ahora mismo por la copia automática de ese día, para todo el equipo y todos los dispositivos. No se puede deshacer.</p>
+          </div>
+          <p class="muted-note" id="autoBackupRestrictedNote" hidden>Solo un administrador puede restaurar una copia automática. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
         </div>
 
         <div class="settings-card">
@@ -622,8 +698,18 @@ function seedData(){
     schedule: {}, // 'YYYY-MM-DD' -> employeeId -> {tipo, tienda, ini, fin} o {tipo:'P', tramos:[{tienda,ini,fin} x2]}
     notes: {},    // 'YYYY-MM-DD' -> texto
     holidays: {}, // 'YYYY-MM-DD' -> true (festivo marcado a mano, aparte de los domingos)
-    citas: { ALC:{}, POL:{}, ART:{} } // citas[store]['YYYY-MM-DD'] -> [{hora,texto}]
+    citas: { ALC:{}, POL:{}, ART:{} }, // citas[store]['YYYY-MM-DD'] -> [{hora,texto}]
+    avisos: { ALC:[], POL:[], ART:[] } // avisos[store] -> [{id,nombre,telefono,nota,estado,avisado,creado}]
   };
+}
+/* Se asegura de que DATA.avisos tenga la forma correcta, tanto para datos
+   guardados antes de que existiera esta sección como para lo que llegue del
+   servidor (que puede ser una copia antigua). */
+function ensureAvisosShape(data){
+  if(!data.avisos || typeof data.avisos !== 'object') data.avisos = {};
+  STORES.forEach(s=>{
+    if(!Array.isArray(data.avisos[s.code])) data.avisos[s.code] = [];
+  });
 }
 
 function pad(n){return String(n).padStart(2,'0');}
@@ -686,6 +772,7 @@ let state = {
   empFilter: 'todos',
   citaStore: 'ALC',
   citaWeekAnchor: null, // lunes (YYYY-MM-DD) de la semana que se ve en el resumen semanal de citas
+  avisoStore: 'ALC',
   who: localStorage.getItem(WHO_KEY) || null,
   editMode: false,
   editBrush: 'M',
@@ -720,6 +807,7 @@ function loadData(){
         if(typeof e.admin === 'undefined') e.admin = false; // migración: flag admin
         if(typeof e.activo === 'undefined') e.activo = true; // migración: flag activo/de baja
       });
+      ensureAvisosShape(parsed); // migración: datos guardados antes de que existiera Avisos
       if(cleanOrphanData(parsed)) localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
       return parsed;
     }
@@ -773,6 +861,7 @@ async function syncPull(){
   if(resp.ok){
     const serverData = await resp.json();
     DATA = serverData;
+    ensureAvisosShape(DATA); // por si el servidor todavía tiene una copia de antes de que existiera Avisos
     if(cleanOrphanData(DATA)) syncPush(); // había turnos de empleados ya borrados: limpiamos y lo subimos para que todos vean la copia limpia
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
   }
@@ -780,6 +869,7 @@ async function syncPull(){
 function renderActiveTab(){
   if(state.activeTab==='cuadrante') renderCuadrante();
   else if(state.activeTab==='citas') renderCitas();
+  else if(state.activeTab==='avisos') renderAvisos();
   else if(state.activeTab==='ajustes') renderAjustes();
 }
 // Revalida la sesión cada 20 min y refresca los datos cada 45s (sin pisar una edición en curso),
@@ -911,6 +1001,7 @@ document.querySelectorAll('.tab').forEach(btn=>{
     document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
     state.activeTab = btn.dataset.tab;
     if(btn.dataset.tab==='citas') renderCitas();
+    if(btn.dataset.tab==='avisos') renderAvisos();
     if(btn.dataset.tab==='ajustes') renderAjustes();
   });
 });
@@ -2092,6 +2183,147 @@ document.getElementById('addCitaBtn').addEventListener('click', ()=>{
   renderCitaList();
 });
 
+/* ============ AVISOS (pedidos listos para recoger) ============ */
+function renderAvisoStoreChips(){
+  const wrap = document.getElementById('avisoStoreChips');
+  wrap.innerHTML = STORES.map(s=>`<button class="chip ${state.avisoStore===s.code?'active':''}" data-code="${s.code}">${s.name}</button>`).join('');
+  wrap.querySelectorAll('.chip').forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      state.avisoStore = ch.dataset.code;
+      renderAvisos();
+    });
+  });
+}
+function renderAvisoList(){
+  const wrap = document.getElementById('avisoList');
+  const arr = DATA.avisos[state.avisoStore] || [];
+  if(!arr.length){
+    wrap.innerHTML = `<div class="empty-state">Sin avisos en esta tienda.</div>`;
+    return;
+  }
+  // Los pendientes de avisar arriba (más recientes primero); los ya avisados
+  // se quedan visibles debajo, atenuados, en vez de desaparecer de la lista.
+  const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
+  const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
+  const ordered = [...pendientes, ...avisados];
+  const estadoLabel = {pendiente:'Pendiente', senal:'Señal', pagado:'Pagado'};
+  wrap.innerHTML = ordered.map(a=>{
+    const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
+    const notaHtml = a.nota ? `<div class="aviso-nota">${escHtml(a.nota)}</div>` : '';
+    return `<div class="aviso-item${a.avisado ? ' avisado' : ''}" data-id="${a.id}">
+      <input type="checkbox" class="aviso-check" ${a.avisado ? 'checked' : ''} title="Marcar como avisado">
+      <div class="aviso-item-body">
+        <div class="aviso-item-top">
+          <span class="aviso-nombre">${escHtml(a.nombre)}</span>
+          <span class="aviso-estado-badge ${a.estado}">${estadoLabel[a.estado] || a.estado}</span>
+          ${telHtml}
+        </div>
+        ${notaHtml}
+      </div>
+      <button class="aviso-del" data-id="${a.id}">&times;</button>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.aviso-check').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const id = chk.closest('.aviso-item').dataset.id;
+      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      if(!item) return;
+      item.avisado = chk.checked;
+      saveData();
+      renderAvisoList();
+    });
+  });
+  wrap.querySelectorAll('.aviso-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      DATA.avisos[state.avisoStore] = DATA.avisos[state.avisoStore].filter(x=>x.id!==id);
+      saveData();
+      renderAvisoList();
+    });
+  });
+}
+function renderAvisos(){
+  renderAvisoStoreChips();
+  renderAvisoList();
+}
+let avisoFormEstado = 'pendiente';
+function syncAvisoEstadoBtns(){
+  document.querySelectorAll('#avisoEstadoBtns .estado-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.estado===avisoFormEstado);
+  });
+}
+syncAvisoEstadoBtns();
+document.querySelectorAll('#avisoEstadoBtns .estado-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    avisoFormEstado = btn.dataset.estado;
+    syncAvisoEstadoBtns();
+  });
+});
+document.getElementById('addAvisoBtn').addEventListener('click', ()=>{
+  const nombre = document.getElementById('avisoNombre').value.trim();
+  const telefono = document.getElementById('avisoTelefono').value.trim();
+  const nota = document.getElementById('avisoNota').value.trim();
+  if(!nombre) return;
+  if(!DATA.avisos[state.avisoStore]) DATA.avisos[state.avisoStore] = [];
+  const entry = {
+    id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+    nombre, estado: avisoFormEstado, avisado: false, creado: Date.now()
+  };
+  if(telefono) entry.telefono = telefono;
+  if(nota) entry.nota = nota;
+  DATA.avisos[state.avisoStore].push(entry);
+  document.getElementById('avisoNombre').value = '';
+  document.getElementById('avisoTelefono').value = '';
+  document.getElementById('avisoNota').value = '';
+  avisoFormEstado = 'pendiente';
+  syncAvisoEstadoBtns();
+  saveData();
+  renderAvisoList();
+});
+
+/* ---------- Resumen de avisos ---------- */
+function renderAvisoResumenStoreChips(){
+  const wrap = document.getElementById('avisoResumenStoreChips');
+  wrap.innerHTML = STORES.map(s=>`<button class="chip ${state.avisoStore===s.code?'active':''}" data-code="${s.code}">${s.name}</button>`).join('');
+  wrap.querySelectorAll('.chip').forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      state.avisoStore = ch.dataset.code;
+      renderAvisoStoreChips(); // mantiene sincronizados los chips de la pestaña Avisos
+      renderAvisoList();
+      renderAvisoResumen();
+    });
+  });
+}
+function renderAvisoResumen(){
+  renderAvisoResumenStoreChips();
+  const arr = DATA.avisos[state.avisoStore] || [];
+  const body = document.getElementById('avisoResumenBody');
+  if(!arr.length){
+    body.innerHTML = `<div class="empty-state">Sin avisos en esta tienda.</div>`;
+    return;
+  }
+  const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
+  const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
+  const ordered = [...pendientes, ...avisados];
+  const estadoLabel = {pendiente:'Pendiente', senal:'Señal', pagado:'Pagado'};
+  body.innerHTML = ordered.map(a=>{
+    const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
+    return `<div class="aviso-resumen-row${a.avisado ? ' avisado' : ''}">
+      <span class="aviso-resumen-nombre">${escHtml(a.nombre)}</span>
+      <span class="aviso-estado-badge ${a.estado}">${estadoLabel[a.estado] || a.estado}</span>
+      ${telHtml}
+    </div>`;
+  }).join('');
+}
+function openAvisoResumenModal(){
+  renderAvisoResumen();
+  document.getElementById('avisoResumenModal').hidden = false;
+}
+document.getElementById('avisoResumenBtn').addEventListener('click', openAvisoResumenModal);
+document.getElementById('avisoResumenCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('avisoResumenModal').hidden = true;
+});
+
 /* ============ AJUSTES ============ */
 document.querySelectorAll('#themeSeg button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -2184,6 +2416,11 @@ function renderPwdCard(){
   const restoreNote = document.getElementById('restoreRestrictedNote');
   if(restoreBlock) restoreBlock.hidden = !isAdmin;
   if(restoreNote) restoreNote.hidden = isAdmin;
+  const autoBlock = document.getElementById('autoBackupAdminBlock');
+  const autoNote = document.getElementById('autoBackupRestrictedNote');
+  if(autoBlock) autoBlock.hidden = !isAdmin;
+  if(autoNote) autoNote.hidden = isAdmin;
+  if(isAdmin) loadAutoBackupDates();
 }
 
 document.getElementById('clearMonthBtn').addEventListener('click', ()=>{
@@ -2264,6 +2501,7 @@ document.getElementById('restoreBackupBtn').addEventListener('click', ()=>{
     if(!incoming.templates) incoming.templates = {};
     if(!incoming.schedule) incoming.schedule = {};
     if(!incoming.citas) incoming.citas = {ALC:{}, POL:{}, ART:{}};
+    ensureAvisosShape(incoming);
     incoming.employees.forEach(e=>{
       if(typeof e.admin==='undefined') e.admin = false;
       if(typeof e.activo==='undefined') e.activo = true;
@@ -2281,6 +2519,79 @@ document.getElementById('restoreBackupBtn').addEventListener('click', ()=>{
     alert('Copia de seguridad restaurada correctamente.');
   };
   reader.readAsText(file);
+});
+
+/* ---------- Copias automáticas (backend) ---------- */
+function formatBackupDate(dateKey){
+  const parts = String(dateKey||'').split('-');
+  if(parts.length !== 3) return dateKey;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
+async function loadAutoBackupDates(){
+  const select = document.getElementById('autoBackupDateSelect');
+  if(!select) return;
+  const me = DATA.employees.find(e=>e.id===state.who);
+  if(!me || !me.admin) return; // no es admin: el bloque está oculto, no hace falta pedir nada
+  const token = getToken();
+  if(!token) return;
+  try{
+    const resp = await fetch(WORKER_URL + '/backups', { headers: { Authorization: 'Bearer ' + token } });
+    if(!resp.ok){ select.innerHTML = '<option value="">No se han podido cargar las fechas</option>'; return; }
+    const body = await resp.json();
+    const dates = Array.isArray(body.dates) ? body.dates : [];
+    if(!dates.length){ select.innerHTML = '<option value="">Todavía no hay copias automáticas</option>'; return; }
+    select.innerHTML = dates.map(d=>`<option value="${d}">${formatBackupDate(d)}</option>`).join('');
+  }catch(e){
+    select.innerHTML = '<option value="">Sin conexión: no se han podido cargar</option>';
+  }
+}
+document.getElementById('autoBackupRestoreBtn').addEventListener('click', async ()=>{
+  const select = document.getElementById('autoBackupDateSelect');
+  const dateKey = select && select.value;
+  if(!dateKey){ alert('Elige primero una fecha de la lista.'); return; }
+  const token = getToken();
+  if(!token){ alert('La sesión ha caducado, vuelve a entrar.'); return; }
+  const btn = document.getElementById('autoBackupRestoreBtn');
+  btn.disabled = true;
+  try{
+    const resp = await fetch(WORKER_URL + '/backups/' + dateKey, { headers: { Authorization: 'Bearer ' + token } });
+    if(!resp.ok){
+      alert('No se ha podido descargar la copia automática de ese día.');
+      return;
+    }
+    const incoming = await resp.json();
+    if(!incoming || !Array.isArray(incoming.employees)){
+      alert('Esa copia automática no tiene el formato esperado.');
+      return;
+    }
+    if(!confirm(`¿Restaurar la copia automática del ${formatBackupDate(dateKey)}?\n\nSe sustituirá TODO lo que hay ahora mismo (empleados, turnos, notas, festivos, citas y avisos) por lo que había guardado ese día, para todo el equipo y todos los dispositivos.\n\n¿Continuar?`)) return;
+    if(!confirm('Última confirmación: esto no se puede deshacer. ¿Confirmas que quieres restaurar esta copia automática?')) return;
+    if(!incoming.holidays) incoming.holidays = {};
+    if(!incoming.notes) incoming.notes = {};
+    if(!incoming.templates) incoming.templates = {};
+    if(!incoming.schedule) incoming.schedule = {};
+    if(!incoming.citas) incoming.citas = {ALC:{}, POL:{}, ART:{}};
+    ensureAvisosShape(incoming);
+    incoming.employees.forEach(e=>{
+      if(typeof e.admin==='undefined') e.admin = false;
+      if(typeof e.activo==='undefined') e.activo = true;
+    });
+    DATA = incoming;
+    cleanOrphanData(DATA);
+    state.who = null;
+    state.empFilter = 'todos';
+    localStorage.removeItem(WHO_KEY);
+    saveData();
+    renderAjustes();
+    renderCuadrante();
+    ensureWho();
+    alert('Copia automática restaurada correctamente.');
+  }catch(e){
+    alert('Sin conexión: no se ha podido restaurar ahora mismo.');
+  }finally{
+    btn.disabled = false;
+  }
 });
 
 document.getElementById('addEmpBtn').addEventListener('click', ()=>{
