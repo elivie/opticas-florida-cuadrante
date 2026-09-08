@@ -223,6 +223,16 @@ button{cursor:pointer;}
 .sheet-header h3::first-letter{text-transform:uppercase;}
 .sheet-header button.close{background:none; border:none; color:var(--text-dim); font-size:22px; line-height:1;}
 
+#appToast{
+  position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom));
+  transform:translateX(-50%) translateY(14px);
+  background:var(--surface-3); color:var(--text); border:1px solid var(--border);
+  padding:11px 20px; border-radius:24px; font-size:13.5px; font-weight:700;
+  box-shadow:var(--shadow); opacity:0; pointer-events:none; z-index:500;
+  transition:opacity .18s ease, transform .18s ease; max-width:calc(100vw - 40px); text-align:center;
+}
+#appToast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
 .field-label{font-size:12px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.03em; margin:16px 0 8px;}
 textarea.notes{
   width:100%; min-height:64px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2);
@@ -675,6 +685,9 @@ select.emp-picker{
   <div class="sheet" id="daySheet"></div>
 </div>
 
+<!-- Aviso breve de "guardado" / "eliminado", para confirmar que un botón sí ha hecho algo -->
+<div id="appToast"></div>
+
 <script>
 (function(){
 "use strict";
@@ -846,6 +859,18 @@ function loadData(){
   seedSampleShifts(d);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
   return d;
+}
+let toastTimer = null;
+// Aviso breve abajo de la pantalla para confirmar que un botón sí ha hecho
+// algo (p. ej. "Guardar" en el editor de turnos, que se queda con la misma
+// pinta antes y después y por eso parecía que no pasaba nada al pulsarlo).
+function showToast(msg){
+  const toast = document.getElementById('appToast');
+  if(!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toast.classList.remove('show'), 1400);
 }
 function saveData(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
@@ -1825,6 +1850,7 @@ function wireEditorBlock(container, dateKeyStr, empId, existing, pickerMode){
     saveData();
     openDaySheet(dateKeyStr);
     renderCuadrante();
+    showToast(`Turno guardado — ${empName(empId)}`);
   });
 
   const delBtn = block.querySelector('.del-shift');
@@ -1834,6 +1860,7 @@ function wireEditorBlock(container, dateKeyStr, empId, existing, pickerMode){
       saveData();
       openDaySheet(dateKeyStr);
       renderCuadrante();
+      showToast(`Turno eliminado — ${empName(empId)}`);
     });
   }
 }
