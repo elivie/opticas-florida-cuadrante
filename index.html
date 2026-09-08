@@ -292,6 +292,8 @@ select.emp-picker{
 .aviso-item-top{display:flex; flex-wrap:wrap; align-items:center; column-gap:9px; row-gap:4px;}
 .aviso-nombre{font-weight:700; font-size:14px;}
 .aviso-estado-badge{font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px; white-space:nowrap;}
+.aviso-estado-badge.clickable{cursor:pointer; user-select:none;}
+.aviso-estado-badge.clickable:active{opacity:.6;}
 .aviso-estado-badge.pendiente{background:rgba(var(--pendiente-rgb),.16); color:rgb(var(--pendiente-rgb));}
 .aviso-estado-badge.senal{background:rgba(var(--senal-rgb),.16); color:rgb(var(--senal-rgb));}
 .aviso-estado-badge.pagado{background:rgba(var(--pagado-rgb),.16); color:rgb(var(--pagado-rgb));}
@@ -2215,7 +2217,7 @@ function renderAvisoList(){
       <div class="aviso-item-body">
         <div class="aviso-item-top">
           <span class="aviso-nombre">${escHtml(a.nombre)}</span>
-          <span class="aviso-estado-badge ${a.estado}">${estadoLabel[a.estado] || a.estado}</span>
+          <span class="aviso-estado-badge clickable ${a.estado}" data-id="${a.id}" title="Toca para cambiar el estado de pago">${estadoLabel[a.estado] || a.estado}</span>
           ${telHtml}
         </div>
         ${notaHtml}
@@ -2237,6 +2239,21 @@ function renderAvisoList(){
     btn.addEventListener('click', ()=>{
       const id = btn.dataset.id;
       DATA.avisos[state.avisoStore] = DATA.avisos[state.avisoStore].filter(x=>x.id!==id);
+      saveData();
+      renderAvisoList();
+    });
+  });
+  // Tocar la etiqueta de estado la va rotando: pendiente -> señal -> pagado -> pendiente...
+  // así se puede pasar a "pagado" más adelante (p. ej. cuando el cliente viene a recoger
+  // y paga el resto) sin tener que borrar el aviso y crearlo de nuevo.
+  const estadoOrder = ['pendiente', 'senal', 'pagado'];
+  wrap.querySelectorAll('.aviso-estado-badge.clickable').forEach(badge=>{
+    badge.addEventListener('click', ()=>{
+      const id = badge.dataset.id;
+      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      if(!item) return;
+      const idx = estadoOrder.indexOf(item.estado);
+      item.estado = estadoOrder[(idx + 1) % estadoOrder.length];
       saveData();
       renderAvisoList();
     });
