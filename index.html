@@ -1050,11 +1050,11 @@ const PRINT_DOC_CSS = `
   .cal-weekdays{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:4px;}
   .cal-weekdays div{text-align:center; font-size:10px; font-weight:700; color:#666; text-transform:uppercase;}
   .cal-print-grid{display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; gap:4px;}
-  .cal-print-cell{border:1px solid #ccc; border-radius:4px; padding:4px 5px; overflow:hidden; min-height:72px;}
+  .cal-print-cell{border:1px solid #ccc; border-radius:4px; padding:3px 4px; overflow:hidden; min-height:72px;}
   .cal-print-cell.empty{border-color:transparent;}
   .cal-print-cell.holiday{background:#f4f4f4;}
-  .cal-day-num{font-size:11px; font-weight:700; margin-bottom:2px;}
-  .cal-entry{font-size:9.5px; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .cal-day-num{font-size:9px; font-weight:700; margin-bottom:1px;}
+  .cal-entry{font-size:7.5px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .cal-note{font-size:8px; font-style:italic; color:#777; margin-top:2px;}
   .print-generated{margin-top:10px; font-size:9px; color:#888;}
   @media print{ body{padding:0;} }
@@ -1075,7 +1075,11 @@ function buildPrintCalendarHtml(storeFilter){
     let entries = getEntriesForDate(key);
     if(storeFilter && storeFilter !== 'todos') entries = entries.filter(en=>en.tienda===storeFilter);
     const note = DATA.notes[key];
-    const entriesHtml = entries.map(en=>`<div class="cal-entry">${empName(en.empId)} ${en.tipo}</div>`).join('');
+    const showStore = !storeFilter || storeFilter==='todos';
+    const entriesHtml = entries.map(en=>{
+      const suf = (showStore && en.tienda && en.tienda!=='-') ? ' · '+en.tienda : '';
+      return `<div class="cal-entry">${empName(en.empId)} ${en.tipo}${suf}</div>`;
+    }).join('');
     cellsHtml += `<div class="cal-print-cell${esFestivo ? ' holiday' : ''}">
       <div class="cal-day-num">${d}</div>
       ${entriesHtml}
@@ -1172,26 +1176,32 @@ function buildCalendarPdfBlob(storeFilter){
     if(!inMonth) continue;
 
     ops.push('0.06 0.06 0.06 rg');
-    ops.push('BT', '/FB 9 Tf', `1 0 0 1 ${(x+5).toFixed(2)} ${toPdfY(yTop+13)} Tm`, `(${dayNum}) Tj`, 'ET');
+    ops.push('BT', '/FB 8 Tf', `1 0 0 1 ${(x+4).toFixed(2)} ${toPdfY(yTop+11)} Tm`, `(${dayNum}) Tj`, 'ET');
 
     let entries = getEntriesForDate(key);
     if(storeFilter && storeFilter !== 'todos') entries = entries.filter(en=>en.tienda===storeFilter);
 
-    const lineH = 11;
-    const maxLines = Math.max(1, Math.floor((rowH - 20) / lineH));
+    // Letra un poco más pequeña que antes (6.5pt en vez de 7.5pt, líneas más
+    // juntas) para que quepan más turnos por día sin que se corten con un
+    // "+N más" en cuanto hay varios empleados con Partido el mismo día.
+    // Sigue siendo legible impreso en A4 apaisado.
+    const lineH = 8.6;
+    const maxLines = Math.max(1, Math.floor((rowH - 17) / lineH));
     const overflow = entries.length > maxLines;
     const shownCount = overflow ? maxLines - 1 : entries.length;
-    let lineTop = yTop + 25;
+    let lineTop = yTop + 20;
     ops.push('0.13 0.13 0.13 rg');
+    const showStore = !storeFilter || storeFilter === 'todos';
     for(let i=0; i<shownCount; i++){
       const en = entries[i];
-      const text = `${empName(en.empId)} ${en.tipo}`;
-      ops.push('BT', '/FR 7.5 Tf', `1 0 0 1 ${(x+5).toFixed(2)} ${toPdfY(lineTop)} Tm`, `(${pdfEscapeText(text)}) Tj`, 'ET');
+      const sufPdf = (showStore && en.tienda && en.tienda!=='-') ? ' - '+en.tienda : '';
+      const text = `${empName(en.empId)} ${en.tipo}${sufPdf}`;
+      ops.push('BT', '/FR 6.5 Tf', `1 0 0 1 ${(x+4).toFixed(2)} ${toPdfY(lineTop)} Tm`, `(${pdfEscapeText(text)}) Tj`, 'ET');
       lineTop += lineH;
     }
     if(overflow){
       ops.push('0.5 0.5 0.5 rg');
-      ops.push('BT', '/FI 7 Tf', `1 0 0 1 ${(x+5).toFixed(2)} ${toPdfY(lineTop)} Tm`, `(+${entries.length-shownCount} mas) Tj`, 'ET');
+      ops.push('BT', '/FI 6 Tf', `1 0 0 1 ${(x+4).toFixed(2)} ${toPdfY(lineTop)} Tm`, `(+${entries.length-shownCount} mas) Tj`, 'ET');
     }
   }
 
