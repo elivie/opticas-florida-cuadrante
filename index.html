@@ -1821,7 +1821,7 @@ function renderCitaList(){
       <span class="hora">${c.hora}</span>
       <div class="cita-item-body">
         <span class="texto">${escHtml(c.texto)}</span>
-        ${c.telefono ? `<a class="cita-tel" href="tel:${telHref(c.telefono)}">📞 ${escHtml(c.telefono)}</a>` : ''}
+        ${c.telefono ? `<a class="cita-tel" href="${whatsappHref(c.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(c.telefono)}</a>` : ''}
       </div>
       <button data-i="${i}">&times;</button>
     </div>`).join('');
@@ -1962,6 +1962,17 @@ function telHref(phone){
   // Deja solo dígitos y un posible "+" inicial, para que "tel:" siempre reciba
   // algo llamable aunque el teléfono se haya escrito con espacios o guiones.
   return String(phone||'').replace(/[^\d+]/g, '');
+}
+function whatsappHref(phone){
+  // wa.me necesita el número en formato internacional, solo dígitos (sin "+",
+  // sin espacios ni guiones). Si el teléfono se ha escrito "a la española"
+  // (9 dígitos, sin prefijo de país), le añadimos el 34 delante; si ya trae
+  // prefijo de país (más o menos dígitos, o empieza por 00) lo dejamos tal
+  // cual, quitando solo el 00 de marcación internacional si lo lleva.
+  let digits = String(phone||'').replace(/\D/g, '');
+  if(digits.startsWith('00')) digits = digits.slice(2);
+  if(digits.length === 9) digits = '34' + digits;
+  return `https://wa.me/${digits}`;
 }
 function normalizeSearch(str){
   return String(str).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
