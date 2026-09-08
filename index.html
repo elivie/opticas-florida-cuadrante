@@ -316,6 +316,7 @@ select.emp-picker{
 .aviso-nota.clickable:active{opacity:.6;}
 .aviso-nota-empty{font-style:italic; opacity:.6;}
 .aviso-item button.aviso-del{background:none; border:none; color:var(--text-dim); font-size:16px; flex:0 0 auto;}
+.aviso-fecha{font-size:11px; color:var(--text-dim); font-weight:600; margin-top:3px;}
 .aviso-item.stale{border-color:rgba(245,158,11,.5);}
 .aviso-stale-note{font-size:11.5px; font-weight:700; color:rgb(245,158,11); margin-top:4px;}
 .aviso-item.avisado{opacity:.55;}
@@ -2217,6 +2218,10 @@ document.getElementById('addCitaBtn').addEventListener('click', ()=>{
 
 /* ============ AVISOS (pedidos listos para recoger) ============ */
 const AVISO_STALE_DAYS = 14; // a partir de cuántos días sin avisar se resalta como "olvidado"
+function fmtTimestampShort(ts){
+  const d = new Date(ts);
+  return fmtDateShort(dateKey(d.getFullYear(), d.getMonth(), d.getDate()));
+}
 // Número junto a la pestaña "Pedidos": pedidos de las tres tiendas que aún no se han
 // marcado como avisados. Se llama tras cualquier cambio en avisos y tras cada
 // sincronización con el servidor, para que se vea aunque no tengas la pestaña abierta.
@@ -2262,9 +2267,13 @@ function renderAvisoList(){
   wrap.innerHTML = ordered.map(a=>{
     const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
     const notaHtml = `<div class="aviso-nota clickable${a.nota ? '' : ' aviso-nota-empty'}" data-id="${a.id}" title="Toca para editar la nota">${a.nota ? escHtml(a.nota) : '+ Añadir nota'}</div>`;
+    // La fecha del pedido se guarda sola al crearlo (no hay que escribirla a mano) y
+    // se muestra siempre, para saber de un vistazo cuándo se hizo cada uno.
+    const fechaCreado = a.creado || now;
+    const fechaHtml = `<div class="aviso-fecha">Pedido: ${fmtTimestampShort(fechaCreado)}</div>`;
     // Pedidos que llevan mucho tiempo sin avisar se resaltan aparte, para que no se
     // queden olvidados entre los demás a medida que se acumulan.
-    const ageDays = Math.floor((now - (a.creado || now)) / 86400000);
+    const ageDays = Math.floor((now - fechaCreado) / 86400000);
     const isStale = !a.avisado && ageDays >= AVISO_STALE_DAYS;
     const staleHtml = isStale ? `<div class="aviso-stale-note">Pendiente desde hace ${ageDays} días</div>` : '';
     return `<div class="aviso-item${a.avisado ? ' avisado' : ''}${isStale ? ' stale' : ''}" data-id="${a.id}">
@@ -2275,6 +2284,7 @@ function renderAvisoList(){
           <span class="aviso-estado-badge ${a.avisado ? '' : 'clickable'} ${a.estado}" data-id="${a.id}" title="${a.avisado ? 'Desmarca \'avisado\' para poder cambiar el estado' : 'Toca para cambiar el estado de pago'}">${estadoLabel[a.estado] || a.estado}</span>
           ${telHtml}
         </div>
+        ${fechaHtml}
         ${staleHtml}
         ${notaHtml}
       </div>
