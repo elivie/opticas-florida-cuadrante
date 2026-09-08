@@ -2234,6 +2234,7 @@ function renderAvisoList(){
       const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
       if(!item) return;
       item.avisado = chk.checked;
+      if(chk.checked) item.estado = 'pagado'; // se entrega = se da por cobrado del todo
       saveData();
       renderAvisoList();
     });
