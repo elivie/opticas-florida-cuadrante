@@ -304,9 +304,12 @@ select.emp-picker{
 }
 .aviso-item .aviso-tel:active{opacity:.65;}
 .aviso-nota{font-size:13px; color:var(--text-dim); line-height:1.4; margin-top:4px; overflow-wrap:anywhere;}
+.aviso-nota.clickable{cursor:pointer;}
+.aviso-nota.clickable:active{opacity:.6;}
+.aviso-nota-empty{font-style:italic; opacity:.6;}
 .aviso-item button.aviso-del{background:none; border:none; color:var(--text-dim); font-size:16px; flex:0 0 auto;}
 .aviso-item.avisado{opacity:.55;}
-.aviso-item.avisado .aviso-nombre, .aviso-item.avisado .aviso-nota{text-decoration:line-through;}
+.aviso-item.avisado .aviso-nombre, .aviso-item.avisado .aviso-nota:not(.aviso-nota-empty){text-decoration:line-through;}
 .aviso-resumen-row{display:flex; align-items:center; gap:8px; padding:9px 2px; border-bottom:1px solid var(--border);}
 .aviso-resumen-row:last-child{border-bottom:none;}
 .aviso-resumen-row.avisado{opacity:.55;}
@@ -459,7 +462,7 @@ select.emp-picker{
   <!-- Modal resumen de avisos -->
   <div id="avisoResumenModal" class="modal-overlay" hidden>
     <div class="modal-card week-modal-card">
-      <h2>Resumen de avisos</h2>
+      <h2>Resumen de pedidos</h2>
       <div class="chip-row" id="avisoResumenStoreChips" style="margin-bottom:14px;"></div>
       <div id="avisoResumenBody"></div>
       <button class="btn" id="avisoResumenCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
@@ -476,7 +479,7 @@ select.emp-picker{
     <nav class="tabs">
       <button class="tab active" data-tab="cuadrante">Cuadrante</button>
       <button class="tab" data-tab="citas">Citas</button>
-      <button class="tab" data-tab="avisos">Avisos</button>
+      <button class="tab" data-tab="avisos">Pedidos</button>
       <button class="tab" data-tab="ajustes">Ajustes</button>
     </nav>
 
@@ -541,7 +544,7 @@ select.emp-picker{
             <button type="button" class="estado-btn" data-estado="pagado">Pagado €</button>
           </div>
         </div>
-        <button class="btn primary" style="width:100%; margin-top:8px;" id="addAvisoBtn">Añadir aviso</button>
+        <button class="btn primary" style="width:100%; margin-top:8px;" id="addAvisoBtn">Añadir pedido</button>
       </section>
 
       <!-- AJUSTES -->
@@ -591,7 +594,7 @@ select.emp-picker{
         <div class="settings-card">
           <h3>Copia de seguridad</h3>
           <button class="btn primary" id="exportBackupBtn" style="width:100%;">Descargar copia de seguridad</button>
-          <p class="muted-note">Descarga un archivo con todo el cuadrante (empleados, turnos, notas, festivos y citas) por si hace falta recuperarlo más adelante. Puede descargarla cualquiera.</p>
+          <p class="muted-note">Descarga un archivo con todo el cuadrante (empleados, turnos, notas, festivos, citas y pedidos) por si hace falta recuperarlo más adelante. Puede descargarla cualquiera.</p>
 
           <div style="height:1px; background:var(--border); margin:16px 0;"></div>
 
@@ -629,7 +632,7 @@ select.emp-picker{
 
             <div class="field-label" style="margin-top:0;">Limpiar todo</div>
             <button class="btn danger" id="resetAllBtn" style="width:100%; margin-top:4px;">Limpiar cuadrante completo</button>
-            <p class="muted-note">Borra empleados, turnos, notas y festivos marcados a mano de todo el equipo, de todos los meses. Las citas de las tiendas no se tocan. Afecta a todos los dispositivos y no se puede deshacer.</p>
+            <p class="muted-note">Borra empleados, turnos, notas y festivos marcados a mano de todo el equipo, de todos los meses. Las citas y los pedidos de las tiendas no se tocan. Afecta a todos los dispositivos y no se puede deshacer.</p>
           </div>
           <p class="muted-note" id="resetRestrictedNote" hidden>Solo un administrador puede usar estas opciones. Si necesitas hacerlo, marca a alguien como administrador en la lista de Empleados de arriba.</p>
         </div>
@@ -2200,7 +2203,7 @@ function renderAvisoList(){
   const wrap = document.getElementById('avisoList');
   const arr = DATA.avisos[state.avisoStore] || [];
   if(!arr.length){
-    wrap.innerHTML = `<div class="empty-state">Sin avisos en esta tienda.</div>`;
+    wrap.innerHTML = `<div class="empty-state">Sin pedidos en esta tienda.</div>`;
     return;
   }
   // Los pendientes de avisar arriba (más recientes primero); los ya avisados
@@ -2211,13 +2214,13 @@ function renderAvisoList(){
   const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
   wrap.innerHTML = ordered.map(a=>{
     const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
-    const notaHtml = a.nota ? `<div class="aviso-nota">${escHtml(a.nota)}</div>` : '';
+    const notaHtml = `<div class="aviso-nota clickable${a.nota ? '' : ' aviso-nota-empty'}" data-id="${a.id}" title="Toca para editar la nota">${a.nota ? escHtml(a.nota) : '+ Añadir nota'}</div>`;
     return `<div class="aviso-item${a.avisado ? ' avisado' : ''}" data-id="${a.id}">
       <input type="checkbox" class="aviso-check" ${a.avisado ? 'checked' : ''} title="Marcar como avisado">
       <div class="aviso-item-body">
         <div class="aviso-item-top">
           <span class="aviso-nombre">${escHtml(a.nombre)}</span>
-          <span class="aviso-estado-badge clickable ${a.estado}" data-id="${a.id}" title="Toca para cambiar el estado de pago">${estadoLabel[a.estado] || a.estado}</span>
+          <span class="aviso-estado-badge ${a.avisado ? '' : 'clickable'} ${a.estado}" data-id="${a.id}" title="${a.avisado ? 'Desmarca \'avisado\' para poder cambiar el estado' : 'Toca para cambiar el estado de pago'}">${estadoLabel[a.estado] || a.estado}</span>
           ${telHtml}
         </div>
         ${notaHtml}
@@ -2254,6 +2257,21 @@ function renderAvisoList(){
       if(!item) return;
       const idx = estadoOrder.indexOf(item.estado);
       item.estado = estadoOrder[(idx + 1) % estadoOrder.length];
+      saveData();
+      renderAvisoList();
+    });
+  });
+  // Tocar la nota la deja editar (p. ej. para apuntar "pagadas 2 de 4 cuotas"),
+  // en cualquier momento, esté avisado o no.
+  wrap.querySelectorAll('.aviso-nota.clickable').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const id = el.dataset.id;
+      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      if(!item) return;
+      const val = prompt(`Nota para ${item.nombre}:`, item.nota || '');
+      if(val === null) return; // cancelado
+      const trimmed = val.trim();
+      if(trimmed) item.nota = trimmed; else delete item.nota;
       saveData();
       renderAvisoList();
     });
@@ -2316,7 +2334,7 @@ function renderAvisoResumen(){
   const arr = DATA.avisos[state.avisoStore] || [];
   const body = document.getElementById('avisoResumenBody');
   if(!arr.length){
-    body.innerHTML = `<div class="empty-state">Sin avisos en esta tienda.</div>`;
+    body.innerHTML = `<div class="empty-state">Sin pedidos en esta tienda.</div>`;
     return;
   }
   const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
@@ -2456,7 +2474,7 @@ document.getElementById('clearMonthBtn').addEventListener('click', ()=>{
 });
 
 document.getElementById('resetAllBtn').addEventListener('click', ()=>{
-  if(!confirm('¿Seguro que quieres limpiar el cuadrante completo?\n\nSe borrarán TODOS los empleados, turnos, notas y festivos marcados a mano, para todo el equipo. Las citas de las tiendas no se tocan.\n\n¿Continuar?')) return;
+  if(!confirm('¿Seguro que quieres limpiar el cuadrante completo?\n\nSe borrarán TODOS los empleados, turnos, notas y festivos marcados a mano, para todo el equipo. Las citas y los pedidos de las tiendas no se tocan.\n\n¿Continuar?')) return;
   if(!confirm('Última confirmación: esto va a dejar el cuadrante completamente vacío ahora mismo, para todos los dispositivos, y no se puede deshacer.\n\n¿Confirmas que quieres limpiarlo todo?')) return;
   DATA.employees = [];
   DATA.templates = {};
@@ -2511,7 +2529,7 @@ document.getElementById('restoreBackupBtn').addEventListener('click', ()=>{
       alert('Ese archivo no parece una copia de seguridad de esta app (falta la lista de empleados).');
       return;
     }
-    if(!confirm('¿Restaurar esta copia de seguridad?\n\nSe sustituirá TODO lo que hay ahora mismo (empleados, turnos, notas, festivos y citas) por lo guardado en el archivo, para todo el equipo y todos los dispositivos.\n\n¿Continuar?')) return;
+    if(!confirm('¿Restaurar esta copia de seguridad?\n\nSe sustituirá TODO lo que hay ahora mismo (empleados, turnos, notas, festivos, citas y pedidos) por lo guardado en el archivo, para todo el equipo y todos los dispositivos.\n\n¿Continuar?')) return;
     if(!confirm('Última confirmación: esto no se puede deshacer. ¿Confirmas que quieres restaurar esta copia?')) return;
     if(!incoming.holidays) incoming.holidays = {};
     if(!incoming.notes) incoming.notes = {};
@@ -2582,7 +2600,7 @@ document.getElementById('autoBackupRestoreBtn').addEventListener('click', async 
       alert('Esa copia automática no tiene el formato esperado.');
       return;
     }
-    if(!confirm(`¿Restaurar la copia automática del ${formatBackupDate(dateKey)}?\n\nSe sustituirá TODO lo que hay ahora mismo (empleados, turnos, notas, festivos, citas y avisos) por lo que había guardado ese día, para todo el equipo y todos los dispositivos.\n\n¿Continuar?`)) return;
+    if(!confirm(`¿Restaurar la copia automática del ${formatBackupDate(dateKey)}?\n\nSe sustituirá TODO lo que hay ahora mismo (empleados, turnos, notas, festivos, citas y pedidos) por lo que había guardado ese día, para todo el equipo y todos los dispositivos.\n\n¿Continuar?`)) return;
     if(!confirm('Última confirmación: esto no se puede deshacer. ¿Confirmas que quieres restaurar esta copia automática?')) return;
     if(!incoming.holidays) incoming.holidays = {};
     if(!incoming.notes) incoming.notes = {};
