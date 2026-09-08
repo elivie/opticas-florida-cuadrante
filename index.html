@@ -116,6 +116,11 @@ button{cursor:pointer;}
   border-bottom:2px solid transparent; transition:background .12s, color .12s;
 }
 .tab.active{color:var(--accent); background:var(--surface-2); border-bottom-color:var(--accent);}
+.tab-badge{
+  display:inline-block; margin-left:5px; min-width:16px; padding:1px 5px; border-radius:20px;
+  background:rgb(var(--pendiente-rgb)); color:#fff; font-size:10px; font-weight:800;
+  letter-spacing:0; text-transform:none; vertical-align:2px;
+}
 
 #content{flex:1; padding:16px; padding-bottom:90px; max-width:720px; margin:0 auto; width:100%;}
 .tab-panel{display:none;}
@@ -311,6 +316,8 @@ select.emp-picker{
 .aviso-nota.clickable:active{opacity:.6;}
 .aviso-nota-empty{font-style:italic; opacity:.6;}
 .aviso-item button.aviso-del{background:none; border:none; color:var(--text-dim); font-size:16px; flex:0 0 auto;}
+.aviso-item.stale{border-color:rgba(245,158,11,.5);}
+.aviso-stale-note{font-size:11.5px; font-weight:700; color:rgb(245,158,11); margin-top:4px;}
 .aviso-item.avisado{opacity:.55;}
 .aviso-item.avisado .aviso-nombre, .aviso-item.avisado .aviso-nota:not(.aviso-nota-empty){text-decoration:line-through;}
 .aviso-resumen-row{display:flex; align-items:center; gap:8px; padding:9px 2px; border-bottom:1px solid var(--border);}
@@ -493,7 +500,7 @@ select.emp-picker{
     <nav class="tabs">
       <button class="tab active" data-tab="cuadrante">Cuadrante</button>
       <button class="tab" data-tab="citas">Citas</button>
-      <button class="tab" data-tab="avisos">Pedidos</button>
+      <button class="tab" data-tab="avisos">Pedidos<span class="tab-badge" id="avisoTabBadge" hidden>0</span></button>
       <button class="tab" data-tab="ajustes">Ajustes</button>
     </nav>
 
@@ -886,6 +893,7 @@ async function syncPull(){
     ensureAvisosShape(DATA); // por si el servidor todavía tiene una copia de antes de que existiera Avisos
     if(cleanOrphanData(DATA)) syncPush(); // había turnos de empleados ya borrados: limpiamos y lo subimos para que todos vean la copia limpia
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+    updateAvisoTabBadge(); // por si han cambiado los pedidos desde otro dispositivo
   }
 }
 function renderActiveTab(){
@@ -1945,6 +1953,8 @@ function renderCitaList(){
       // qué coincidir con la posición real en el array guardado; buscamos el
       // objeto exacto por referencia para no borrar la cita equivocada.
       const target = list[Number(btn.dataset.i)];
+      const detalle = target.texto ? ` (${target.texto})` : '';
+      if(!confirm(`¿Borrar la cita de las ${target.hora}${detalle}?\n\nNo se puede deshacer.`)) return;
       const rawIdx = arr.indexOf(target);
       if(rawIdx > -1) arr.splice(rawIdx, 1);
       saveData();
@@ -2206,6 +2216,24 @@ document.getElementById('addCitaBtn').addEventListener('click', ()=>{
 });
 
 /* ============ AVISOS (pedidos listos para recoger) ============ */
+const AVISO_STALE_DAYS = 14; // a partir de cuántos días sin avisar se resalta como "olvidado"
+// Número junto a la pestaña "Pedidos": pedidos de las tres tiendas que aún no se han
+// marcado como avisados. Se llama tras cualquier cambio en avisos y tras cada
+// sincronización con el servidor, para que se vea aunque no tengas la pestaña abierta.
+function updateAvisoTabBadge(){
+  const badge = document.getElementById('avisoTabBadge');
+  if(!badge) return;
+  let count = 0;
+  STORES.forEach(s=>{
+    (DATA.avisos[s.code] || []).forEach(a=>{ if(!a.avisado) count++; });
+  });
+  if(count > 0){
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.hidden = false;
+  }else{
+    badge.hidden = true;
+  }
+}
 function renderAvisoStoreChips(){
   const wrap = document.getElementById('avisoStoreChips');
   wrap.innerHTML = STORES.map(s=>`<button class="chip ${state.avisoStore===s.code?'active':''}" data-code="${s.code}">${s.name}</button>`).join('');
@@ -2217,6 +2245,7 @@ function renderAvisoStoreChips(){
   });
 }
 function renderAvisoList(){
+  updateAvisoTabBadge();
   const wrap = document.getElementById('avisoList');
   const arr = DATA.avisos[state.avisoStore] || [];
   if(!arr.length){
@@ -2229,10 +2258,16 @@ function renderAvisoList(){
   const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
   const ordered = [...pendientes, ...avisados];
   const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
+  const now = Date.now();
   wrap.innerHTML = ordered.map(a=>{
     const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
     const notaHtml = `<div class="aviso-nota clickable${a.nota ? '' : ' aviso-nota-empty'}" data-id="${a.id}" title="Toca para editar la nota">${a.nota ? escHtml(a.nota) : '+ Añadir nota'}</div>`;
-    return `<div class="aviso-item${a.avisado ? ' avisado' : ''}" data-id="${a.id}">
+    // Pedidos que llevan mucho tiempo sin avisar se resaltan aparte, para que no se
+    // queden olvidados entre los demás a medida que se acumulan.
+    const ageDays = Math.floor((now - (a.creado || now)) / 86400000);
+    const isStale = !a.avisado && ageDays >= AVISO_STALE_DAYS;
+    const staleHtml = isStale ? `<div class="aviso-stale-note">Pendiente desde hace ${ageDays} días</div>` : '';
+    return `<div class="aviso-item${a.avisado ? ' avisado' : ''}${isStale ? ' stale' : ''}" data-id="${a.id}">
       <input type="checkbox" class="aviso-check" ${a.avisado ? 'checked' : ''} title="Marcar como avisado">
       <div class="aviso-item-body">
         <div class="aviso-item-top">
@@ -2240,6 +2275,7 @@ function renderAvisoList(){
           <span class="aviso-estado-badge ${a.avisado ? '' : 'clickable'} ${a.estado}" data-id="${a.id}" title="${a.avisado ? 'Desmarca \'avisado\' para poder cambiar el estado' : 'Toca para cambiar el estado de pago'}">${estadoLabel[a.estado] || a.estado}</span>
           ${telHtml}
         </div>
+        ${staleHtml}
         ${notaHtml}
       </div>
       <button class="aviso-del" data-id="${a.id}">&times;</button>
@@ -2259,6 +2295,8 @@ function renderAvisoList(){
   wrap.querySelectorAll('.aviso-del').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.dataset.id;
+      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      if(!confirm(`¿Borrar el pedido de ${item ? item.nombre : 'este cliente'}?\n\nNo se puede deshacer.`)) return;
       DATA.avisos[state.avisoStore] = DATA.avisos[state.avisoStore].filter(x=>x.id!==id);
       saveData();
       renderAvisoList();
@@ -2650,6 +2688,7 @@ document.getElementById('restoreBackupBtn').addEventListener('click', ()=>{
     renderAjustes();
     renderCuadrante();
     ensureWho();
+    updateAvisoTabBadge();
     alert('Copia de seguridad restaurada correctamente.');
   };
   reader.readAsText(file);
@@ -2720,6 +2759,7 @@ document.getElementById('autoBackupRestoreBtn').addEventListener('click', async 
     renderAjustes();
     renderCuadrante();
     ensureWho();
+    updateAvisoTabBadge();
     alert('Copia automática restaurada correctamente.');
   }catch(e){
     alert('Sin conexión: no se ha podido restaurar ahora mismo.');
@@ -2854,6 +2894,7 @@ function startApp(){
   applyTheme();
   ensureWho();
   renderCuadrante();
+  updateAvisoTabBadge();
 }
 
 applyTheme();
