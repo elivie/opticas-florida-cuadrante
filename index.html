@@ -279,6 +279,9 @@ select.emp-picker{
 .empty-state{color:var(--text-dim); font-size:14px; text-align:center; padding:30px 10px;}
 
 /* ---------- Avisos (pedidos listos para recoger) ---------- */
+.aviso-toolbar{display:flex; gap:8px; margin-bottom:14px;}
+.aviso-toolbar .btn{flex:1;}
+.aviso-item.search-highlight{outline:2px solid var(--accent); outline-offset:2px; transition:outline-color 1.4s ease;}
 .aviso-form{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
 .aviso-form input{padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); min-width:0;}
 .estado-btns{display:flex; gap:6px;}
@@ -469,6 +472,17 @@ select.emp-picker{
     </div>
   </div>
 
+  <!-- Modal buscador de pedidos -->
+  <div id="avisoSearchModal" class="modal-overlay" hidden>
+    <div class="modal-card search-modal-card">
+      <h2>Buscar pedido</h2>
+      <p class="hint">Busca por nombre o teléfono, en las tres tiendas a la vez.</p>
+      <input type="text" class="date-input" id="avisoSearchInput" placeholder="Ej: 757583838 o Pons" autocomplete="off" style="margin-bottom:0;">
+      <div id="avisoSearchResults"></div>
+      <button class="btn" id="avisoSearchCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+    </div>
+  </div>
+
   <!-- App -->
   <div id="shell" hidden>
     <header class="topbar">
@@ -532,7 +546,10 @@ select.emp-picker{
       <!-- AVISOS -->
       <section id="tab-avisos" class="tab-panel">
         <div class="chip-row" id="avisoStoreChips"></div>
-        <button class="btn" id="avisoResumenBtn" style="width:100%; margin-bottom:14px;">Resumen</button>
+        <div class="aviso-toolbar">
+          <button class="btn" id="avisoResumenBtn">Resumen</button>
+          <button class="btn" id="avisoSearchBtn">Buscar</button>
+        </div>
         <div id="avisoList"></div>
         <div class="aviso-form">
           <input type="text" id="avisoNombre" placeholder="Nombre del cliente">
@@ -2358,6 +2375,87 @@ function openAvisoResumenModal(){
 document.getElementById('avisoResumenBtn').addEventListener('click', openAvisoResumenModal);
 document.getElementById('avisoResumenCloseBtn').addEventListener('click', ()=>{
   document.getElementById('avisoResumenModal').hidden = true;
+});
+
+/* ---------- Buscador de pedidos (todas las tiendas) ---------- */
+function searchAvisos(rawQuery){
+  const q = rawQuery.trim();
+  if(!q) return [];
+  const normQuery = normalizeSearch(q);
+  const digitsQuery = onlyDigits(q);
+  const results = [];
+  STORES.forEach(store=>{
+    (DATA.avisos[store.code] || []).forEach(a=>{
+      const haystack = normalizeSearch(`${a.nombre} ${a.telefono||''} ${a.nota||''}`);
+      const textMatch = haystack.includes(normQuery);
+      const phoneMatch = digitsQuery.length>=3 && onlyDigits(a.telefono).includes(digitsQuery);
+      if(textMatch || phoneMatch){
+        results.push({tienda:store.code, id:a.id, nombre:a.nombre, telefono:a.telefono||'', estado:a.estado, avisado:a.avisado, creado:a.creado});
+      }
+    });
+  });
+  // pendientes primero, más recientes arriba dentro de cada grupo (igual que la lista normal)
+  results.sort((a,b)=>{
+    if(a.avisado !== b.avisado) return a.avisado ? 1 : -1;
+    return b.creado - a.creado;
+  });
+  return results;
+}
+function renderAvisoSearchResults(){
+  const q = document.getElementById('avisoSearchInput').value;
+  const wrap = document.getElementById('avisoSearchResults');
+  if(!q.trim()){
+    wrap.innerHTML = `<div class="empty-state">Escribe un nombre o un teléfono para buscar en las tres tiendas.</div>`;
+    return;
+  }
+  const results = searchAvisos(q);
+  if(!results.length){
+    wrap.innerHTML = `<div class="empty-state">Sin resultados para "${escHtml(q.trim())}".</div>`;
+    return;
+  }
+  const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
+  const CAP = 80;
+  const shown = results.slice(0, CAP);
+  const itemsHtml = shown.map(r=>{
+    const store = STORE_BY_CODE[r.tienda];
+    const telHtml = r.telefono ? `<div class="search-result-tel">💬 ${highlightMatch(r.telefono, q)}</div>` : '';
+    return `<button class="search-result" data-tienda="${r.tienda}" data-id="${r.id}">
+      <div class="search-result-top">
+        <span class="search-result-store"><span class="search-dot" style="${dotStyle(r.tienda)}"></span>${store?store.name:r.tienda}</span>
+        <span class="search-result-date">${estadoLabel[r.estado] || r.estado}</span>
+      </div>
+      <div class="search-result-texto">${highlightMatch(r.nombre, q)}</div>
+      ${telHtml}
+    </button>`;
+  }).join('');
+  const moreHtml = results.length>CAP
+    ? `<div class="search-more-note">Mostrando los primeros ${CAP} de ${results.length} resultados — afina la búsqueda para ver menos.</div>`
+    : '';
+  wrap.innerHTML = itemsHtml + moreHtml;
+  wrap.querySelectorAll('.search-result[data-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.avisoStore = btn.dataset.tienda;
+      document.getElementById('avisoSearchModal').hidden = true;
+      renderAvisos();
+      const target = document.querySelector(`#avisoList .aviso-item[data-id="${btn.dataset.id}"]`);
+      if(target){
+        target.scrollIntoView({behavior:'smooth', block:'center'});
+        target.classList.add('search-highlight');
+        setTimeout(()=>target.classList.remove('search-highlight'), 1800);
+      }
+    });
+  });
+}
+document.getElementById('avisoSearchBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('avisoSearchInput');
+  input.value = '';
+  renderAvisoSearchResults();
+  document.getElementById('avisoSearchModal').hidden = false;
+  setTimeout(()=>input.focus(), 50);
+});
+document.getElementById('avisoSearchInput').addEventListener('input', renderAvisoSearchResults);
+document.getElementById('avisoSearchCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('avisoSearchModal').hidden = true;
 });
 
 /* ============ AJUSTES ============ */
