@@ -2206,7 +2206,7 @@ function renderAvisoList(){
   const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
   const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
   const ordered = [...pendientes, ...avisados];
-  const estadoLabel = {pendiente:'Pendiente', senal:'Señal', pagado:'Pagado'};
+  const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
   wrap.innerHTML = ordered.map(a=>{
     const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
     const notaHtml = a.nota ? `<div class="aviso-nota">${escHtml(a.nota)}</div>` : '';
@@ -2305,7 +2305,7 @@ function renderAvisoResumen(){
   const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
   const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
   const ordered = [...pendientes, ...avisados];
-  const estadoLabel = {pendiente:'Pendiente', senal:'Señal', pagado:'Pagado'};
+  const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
   body.innerHTML = ordered.map(a=>{
     const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
     return `<div class="aviso-resumen-row${a.avisado ? ' avisado' : ''}">
