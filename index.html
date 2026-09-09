@@ -325,6 +325,25 @@ select.emp-picker{
 .aviso-nota.clickable{cursor:pointer;}
 .aviso-nota.clickable:active{opacity:.6;}
 .aviso-nota-empty{font-style:italic; opacity:.6;}
+.aviso-total-row{display:flex; gap:8px;}
+.aviso-total-row input{flex:1; min-width:0;}
+.aviso-dinero{display:flex; flex-wrap:wrap; column-gap:10px; row-gap:3px; align-items:center; font-size:12px; font-weight:600; color:var(--text-dim); margin-top:4px;}
+.aviso-dinero .aviso-pendiente-monto{color:rgb(var(--pendiente-rgb)); font-weight:800;}
+.aviso-dinero .aviso-pendiente-monto.cero{color:rgb(var(--pagado-rgb));}
+.aviso-add-pago{background:none; border:1px solid var(--border); color:var(--accent); font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:20px;}
+.aviso-add-pago:active{opacity:.6;}
+.aviso-pagos-list{font-size:11px; color:var(--text-dim); margin-top:2px; overflow-wrap:anywhere;}
+.aviso-resumen-pendiente{font-size:11.5px; font-weight:800; color:rgb(var(--pendiente-rgb)); flex:0 0 auto;}
+.aviso-resumen-pendiente.cero{color:rgb(var(--pagado-rgb));}
+.aviso-deuda-total{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background:rgba(var(--pendiente-rgb),.12); border:1px solid rgba(var(--pendiente-rgb),.35);
+  border-radius:10px; padding:9px 12px; margin-bottom:12px; font-size:13px; font-weight:700; color:rgb(var(--pendiente-rgb));
+}
+.aviso-moros-total{
+  background:rgba(var(--pendiente-rgb),.12); border:1px solid rgba(var(--pendiente-rgb),.35);
+  border-radius:10px; padding:9px 12px; margin-bottom:12px; font-size:13px; font-weight:700; color:rgb(var(--pendiente-rgb)); text-align:center;
+}
 .aviso-item button.aviso-del{background:none; border:none; color:var(--text-dim); font-size:16px; flex:0 0 auto;}
 .aviso-fecha{font-size:11px; color:var(--text-dim); font-weight:600; margin-top:3px;}
 .aviso-item.stale{border-color:rgba(245,158,11,.5);}
@@ -485,6 +504,7 @@ select.emp-picker{
     <div class="modal-card week-modal-card">
       <h2>Resumen de pedidos</h2>
       <div class="chip-row" id="avisoResumenStoreChips" style="margin-bottom:14px;"></div>
+      <div id="avisoResumenTotal" class="aviso-deuda-total" hidden></div>
       <div id="avisoResumenBody"></div>
       <button class="btn" id="avisoResumenCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
     </div>
@@ -498,6 +518,17 @@ select.emp-picker{
       <input type="text" class="date-input" id="avisoSearchInput" placeholder="Ej: 757583838 o Pons" autocomplete="off" style="margin-bottom:0;">
       <div id="avisoSearchResults"></div>
       <button class="btn" id="avisoSearchCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Modal de morosos (clientes con deuda pendiente, en las tres tiendas) -->
+  <div id="avisoMorosModal" class="modal-overlay" hidden>
+    <div class="modal-card search-modal-card">
+      <h2>Morosos</h2>
+      <p class="hint">Clientes con importe pendiente, en las tres tiendas, de mayor a menor deuda.</p>
+      <div id="avisoMorosTotal" class="aviso-moros-total" hidden></div>
+      <div id="avisoMorosBody"></div>
+      <button class="btn" id="avisoMorosCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
     </div>
   </div>
 
@@ -567,12 +598,17 @@ select.emp-picker{
         <div class="aviso-toolbar">
           <button class="btn" id="avisoResumenBtn">Resumen</button>
           <button class="btn" id="avisoSearchBtn">Buscar</button>
+          <button class="btn" id="avisoMorosBtn">Morosos</button>
         </div>
         <div id="avisoList"></div>
         <div class="aviso-form">
           <input type="text" id="avisoNombre" placeholder="Nombre del cliente">
           <input type="tel" id="avisoTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
           <input type="text" id="avisoNota" placeholder="Nota (opcional)">
+          <div class="aviso-total-row">
+            <input type="number" id="avisoTotal" placeholder="Total (€, opcional)" inputmode="decimal" min="0" step="0.01">
+            <input type="number" id="avisoPagoInicial" placeholder="Pagado ahora (€)" inputmode="decimal" min="0" step="0.01" hidden>
+          </div>
           <div class="estado-btns" id="avisoEstadoBtns">
             <button type="button" class="estado-btn" data-estado="pendiente">Pendiente €</button>
             <button type="button" class="estado-btn" data-estado="senal">Señal €</button>
@@ -2249,6 +2285,30 @@ function fmtTimestampShort(ts){
   const d = new Date(ts);
   return fmtDateShort(dateKey(d.getFullYear(), d.getMonth(), d.getDate()));
 }
+function fmtEuro(n){
+  const v = Math.round((n || 0) * 100) / 100;
+  return (Number.isInteger(v) ? String(v) : v.toFixed(2)) + ' €';
+}
+// A partir de aquí, "seguimiento de importes": un pedido puede llevar un total
+// pactado y una lista de pagos (cada uno con su fecha) en vez de solo un estado
+// suelto. Si no tiene total (pedidos de antes, o simplemente sin precio fijado),
+// todo esto se ignora y sigue funcionando el estado manual de siempre.
+function avisoPagadoTotal(item){
+  if(!item.pagos || !item.pagos.length) return 0;
+  return Math.round(item.pagos.reduce((s,p)=>s+(p.monto||0), 0) * 100) / 100;
+}
+function avisoPendienteMonto(item){
+  if(typeof item.total !== 'number') return null;
+  const pend = Math.round((item.total - avisoPagadoTotal(item)) * 100) / 100;
+  return pend > 0 ? pend : 0;
+}
+function avisoRecalcEstado(item){
+  if(typeof item.total !== 'number') return item.estado;
+  const pagado = avisoPagadoTotal(item);
+  if(pagado >= item.total) return 'pagado';
+  if(pagado > 0) return 'senal';
+  return 'pendiente';
+}
 // Número junto a la pestaña "Pedidos": pedidos de las tres tiendas que aún no se han
 // marcado como avisados. Se llama tras cualquier cambio en avisos y tras cada
 // sincronización con el servidor, para que se vea aunque no tengas la pestaña abierta.
@@ -2303,14 +2363,38 @@ function renderAvisoList(){
     const ageDays = Math.floor((now - fechaCreado) / 86400000);
     const isStale = !a.avisado && ageDays >= AVISO_STALE_DAYS;
     const staleHtml = isStale ? `<div class="aviso-stale-note">Pendiente desde hace ${ageDays} días</div>` : '';
+    // Si el pedido lleva un total pactado, el estado (pendiente/señal/pagado) se
+    // calcula solo a partir de los pagos registrados, así que la etiqueta deja de
+    // poder tocarse a mano (se movería sola en el siguiente pago, o al entregar).
+    const tieneTotal = typeof a.total === 'number';
+    const estadoClickable = !a.avisado && !tieneTotal;
+    const estadoTitle = tieneTotal
+      ? 'Estado calculado a partir de los pagos registrados'
+      : (a.avisado ? 'Desmarca \'avisado\' para poder cambiar el estado' : 'Toca para cambiar el estado de pago');
+    let dineroHtml = '';
+    if(tieneTotal){
+      const pagado = avisoPagadoTotal(a);
+      const pendiente = avisoPendienteMonto(a);
+      const pagosListHtml = (a.pagos && a.pagos.length)
+        ? `<div class="aviso-pagos-list">Pagos: ${a.pagos.map(p=>`${fmtEuro(p.monto)} · ${fmtTimestampShort(p.fecha)}`).join(', ')}</div>`
+        : '';
+      const addPagoHtml = pendiente > 0 ? `<button type="button" class="aviso-add-pago" data-id="${a.id}">+ Añadir pago</button>` : '';
+      dineroHtml = `<div class="aviso-dinero">
+        <span>Total ${fmtEuro(a.total)}</span>
+        <span>Pagado ${fmtEuro(pagado)}</span>
+        <span class="aviso-pendiente-monto${pendiente>0?'':' cero'}">Pendiente ${fmtEuro(pendiente)}</span>
+        ${addPagoHtml}
+      </div>${pagosListHtml}`;
+    }
     return `<div class="aviso-item${a.avisado ? ' avisado' : ''}${isStale ? ' stale' : ''}" data-id="${a.id}">
       <input type="checkbox" class="aviso-check" ${a.avisado ? 'checked' : ''} title="Marcar como avisado">
       <div class="aviso-item-body">
         <div class="aviso-item-top">
           <span class="aviso-nombre">${escHtml(a.nombre)}</span>
-          <span class="aviso-estado-badge ${a.avisado ? '' : 'clickable'} ${a.estado}" data-id="${a.id}" title="${a.avisado ? 'Desmarca \'avisado\' para poder cambiar el estado' : 'Toca para cambiar el estado de pago'}">${estadoLabel[a.estado] || a.estado}</span>
+          <span class="aviso-estado-badge ${estadoClickable ? 'clickable' : ''} ${a.estado}" data-id="${a.id}" title="${estadoTitle}">${estadoLabel[a.estado] || a.estado}</span>
           ${telHtml}
         </div>
+        ${dineroHtml}
         ${fechaHtml}
         ${staleHtml}
         ${notaHtml}
@@ -2324,7 +2408,37 @@ function renderAvisoList(){
       const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
       if(!item) return;
       item.avisado = chk.checked;
-      if(chk.checked) item.estado = 'pagado'; // se entrega = se da por cobrado del todo
+      if(chk.checked){
+        // se entrega = se da por cobrado del todo. Si llevaba un total pactado y
+        // quedaba algo pendiente, se registra ese resto como el pago final.
+        if(typeof item.total === 'number'){
+          const pendiente = avisoPendienteMonto(item);
+          if(pendiente > 0){
+            item.pagos = item.pagos || [];
+            item.pagos.push({monto: pendiente, fecha: Date.now()});
+          }
+          item.estado = avisoRecalcEstado(item);
+        } else {
+          item.estado = 'pagado';
+        }
+      }
+      saveData();
+      renderAvisoList();
+    });
+  });
+  wrap.querySelectorAll('.aviso-add-pago').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      if(!item) return;
+      const pendiente = avisoPendienteMonto(item);
+      const val = prompt(`Nuevo pago de ${item.nombre} (pendiente: ${fmtEuro(pendiente)}):`, '');
+      if(val === null) return; // cancelado
+      const monto = parseFloat(String(val).replace(',', '.'));
+      if(!(monto > 0)) return;
+      item.pagos = item.pagos || [];
+      item.pagos.push({monto: Math.round(monto * 100) / 100, fecha: Date.now()});
+      item.estado = avisoRecalcEstado(item);
       saveData();
       renderAvisoList();
     });
@@ -2387,6 +2501,18 @@ document.querySelectorAll('#avisoEstadoBtns .estado-btn').forEach(btn=>{
     syncAvisoEstadoBtns();
   });
 });
+// Si se pone un total, el estado deja de elegirse a mano (se calcula solo a
+// partir de los pagos), así que los botones de estado se ocultan y en su lugar
+// se puede indicar cuánto se ha pagado ya (p. ej. la señal, al hacer el pedido).
+const avisoTotalInput = document.getElementById('avisoTotal');
+const avisoPagoInicialInput = document.getElementById('avisoPagoInicial');
+const avisoEstadoBtnsWrap = document.getElementById('avisoEstadoBtns');
+avisoTotalInput.addEventListener('input', ()=>{
+  const tieneTotal = parseFloat(avisoTotalInput.value) > 0;
+  avisoPagoInicialInput.hidden = !tieneTotal;
+  avisoEstadoBtnsWrap.hidden = tieneTotal;
+  if(!tieneTotal) avisoPagoInicialInput.value = '';
+});
 document.getElementById('addAvisoBtn').addEventListener('click', ()=>{
   const nombre = document.getElementById('avisoNombre').value.trim();
   const telefono = document.getElementById('avisoTelefono').value.trim();
@@ -2395,14 +2521,28 @@ document.getElementById('addAvisoBtn').addEventListener('click', ()=>{
   if(!DATA.avisos[state.avisoStore]) DATA.avisos[state.avisoStore] = [];
   const entry = {
     id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,7),
-    nombre, estado: avisoFormEstado, avisado: false, creado: Date.now()
+    nombre, avisado: false, creado: Date.now()
   };
   if(telefono) entry.telefono = telefono;
   if(nota) entry.nota = nota;
+  const totalVal = parseFloat(avisoTotalInput.value);
+  if(totalVal > 0){
+    entry.total = Math.round(totalVal * 100) / 100;
+    entry.pagos = [];
+    const pagoInicial = parseFloat(avisoPagoInicialInput.value);
+    if(pagoInicial > 0) entry.pagos.push({monto: Math.round(pagoInicial * 100) / 100, fecha: Date.now()});
+    entry.estado = avisoRecalcEstado(entry);
+  } else {
+    entry.estado = avisoFormEstado;
+  }
   DATA.avisos[state.avisoStore].push(entry);
   document.getElementById('avisoNombre').value = '';
   document.getElementById('avisoTelefono').value = '';
   document.getElementById('avisoNota').value = '';
+  avisoTotalInput.value = '';
+  avisoPagoInicialInput.value = '';
+  avisoPagoInicialInput.hidden = true;
+  avisoEstadoBtnsWrap.hidden = false;
   avisoFormEstado = 'pendiente';
   syncAvisoEstadoBtns();
   saveData();
@@ -2426,9 +2566,20 @@ function renderAvisoResumen(){
   renderAvisoResumenStoreChips();
   const arr = DATA.avisos[state.avisoStore] || [];
   const body = document.getElementById('avisoResumenBody');
+  const totalWrap = document.getElementById('avisoResumenTotal');
   if(!arr.length){
     body.innerHTML = `<div class="empty-state">Sin pedidos en esta tienda.</div>`;
+    totalWrap.hidden = true;
     return;
+  }
+  // Suma de lo pendiente de cobrar en esta tienda (solo cuenta los pedidos que
+  // llevan un total pactado; los que solo tienen el estado antiguo no aportan cifra).
+  const deudaTotal = arr.reduce((s,a)=> typeof a.total==='number' ? s + avisoPendienteMonto(a) : s, 0);
+  if(deudaTotal > 0){
+    totalWrap.hidden = false;
+    totalWrap.textContent = `Pendiente de cobrar: ${fmtEuro(deudaTotal)}`;
+  }else{
+    totalWrap.hidden = true;
   }
   const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
   const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
@@ -2436,9 +2587,15 @@ function renderAvisoResumen(){
   const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
   body.innerHTML = ordered.map(a=>{
     const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
+    // Lo que más se consulta aquí es cuánto queda por cobrar, así que si el pedido
+    // lleva un total pactado se muestra el importe pendiente en vez del estado.
+    const pendMonto = typeof a.total === 'number' ? avisoPendienteMonto(a) : null;
+    const estadoHtml = pendMonto !== null
+      ? `<span class="aviso-resumen-pendiente${pendMonto>0?'':' cero'}">Pendiente ${fmtEuro(pendMonto)}</span>`
+      : `<span class="aviso-estado-badge ${a.estado}">${estadoLabel[a.estado] || a.estado}</span>`;
     return `<div class="aviso-resumen-row${a.avisado ? ' avisado' : ''}">
       <span class="aviso-resumen-nombre">${escHtml(a.nombre)}</span>
-      <span class="aviso-estado-badge ${a.estado}">${estadoLabel[a.estado] || a.estado}</span>
+      ${estadoHtml}
       ${telHtml}
     </div>`;
   }).join('');
@@ -2465,7 +2622,7 @@ function searchAvisos(rawQuery){
       const textMatch = haystack.includes(normQuery);
       const phoneMatch = digitsQuery.length>=3 && onlyDigits(a.telefono).includes(digitsQuery);
       if(textMatch || phoneMatch){
-        results.push({tienda:store.code, id:a.id, nombre:a.nombre, telefono:a.telefono||'', estado:a.estado, avisado:a.avisado, creado:a.creado});
+        results.push({tienda:store.code, id:a.id, nombre:a.nombre, telefono:a.telefono||'', estado:a.estado, avisado:a.avisado, creado:a.creado, total:a.total, pagos:a.pagos});
       }
     });
   });
@@ -2494,10 +2651,14 @@ function renderAvisoSearchResults(){
   const itemsHtml = shown.map(r=>{
     const store = STORE_BY_CODE[r.tienda];
     const telHtml = r.telefono ? `<div class="search-result-tel">💬 ${highlightMatch(r.telefono, q)}</div>` : '';
+    const rPendMonto = typeof r.total === 'number'
+      ? Math.max(0, Math.round((r.total - (r.pagos||[]).reduce((s,p)=>s+(p.monto||0),0)) * 100) / 100)
+      : null;
+    const estadoOrPend = rPendMonto !== null ? `Pendiente ${fmtEuro(rPendMonto)}` : (estadoLabel[r.estado] || r.estado);
     return `<button class="search-result" data-tienda="${r.tienda}" data-id="${r.id}">
       <div class="search-result-top">
         <span class="search-result-store"><span class="search-dot" style="${dotStyle(r.tienda)}"></span>${store?store.name:r.tienda}</span>
-        <span class="search-result-date">${estadoLabel[r.estado] || r.estado}</span>
+        <span class="search-result-date">${estadoOrPend}</span>
       </div>
       <div class="search-result-texto">${highlightMatch(r.nombre, q)}</div>
       ${telHtml}
@@ -2531,6 +2692,61 @@ document.getElementById('avisoSearchBtn').addEventListener('click', ()=>{
 document.getElementById('avisoSearchInput').addEventListener('input', renderAvisoSearchResults);
 document.getElementById('avisoSearchCloseBtn').addEventListener('click', ()=>{
   document.getElementById('avisoSearchModal').hidden = true;
+});
+
+/* ---------- Morosos: clientes con deuda pendiente, en las tres tiendas ---------- */
+function renderAvisoMorosos(){
+  const rows = [];
+  STORES.forEach(store=>{
+    (DATA.avisos[store.code] || []).forEach(a=>{
+      if(typeof a.total !== 'number') return; // solo cuentan los pedidos con importe pactado
+      const pend = avisoPendienteMonto(a);
+      if(pend > 0) rows.push({tienda:store.code, id:a.id, nombre:a.nombre, telefono:a.telefono||'', pendiente:pend});
+    });
+  });
+  rows.sort((a,b)=> b.pendiente - a.pendiente); // mayor deuda primero
+  const wrap = document.getElementById('avisoMorosBody');
+  const totalWrap = document.getElementById('avisoMorosTotal');
+  if(!rows.length){
+    totalWrap.hidden = true;
+    wrap.innerHTML = `<div class="empty-state">No hay ningún cliente con deuda pendiente.</div>`;
+    return;
+  }
+  const deudaTotal = Math.round(rows.reduce((s,r)=>s+r.pendiente, 0) * 100) / 100;
+  totalWrap.hidden = false;
+  totalWrap.textContent = `Deuda pendiente total: ${fmtEuro(deudaTotal)}`;
+  wrap.innerHTML = rows.map(r=>{
+    const store = STORE_BY_CODE[r.tienda];
+    const telHtml = r.telefono ? `<div class="search-result-tel">💬 ${escHtml(r.telefono)}</div>` : '';
+    return `<button class="search-result" data-tienda="${r.tienda}" data-id="${r.id}">
+      <div class="search-result-top">
+        <span class="search-result-store"><span class="search-dot" style="${dotStyle(r.tienda)}"></span>${store?store.name:r.tienda}</span>
+        <span class="search-result-date aviso-pendiente-monto">${fmtEuro(r.pendiente)}</span>
+      </div>
+      <div class="search-result-texto">${escHtml(r.nombre)}</div>
+      ${telHtml}
+    </button>`;
+  }).join('');
+  wrap.querySelectorAll('.search-result[data-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.avisoStore = btn.dataset.tienda;
+      document.getElementById('avisoMorosModal').hidden = true;
+      renderAvisos();
+      const target = document.querySelector(`#avisoList .aviso-item[data-id="${btn.dataset.id}"]`);
+      if(target){
+        target.scrollIntoView({behavior:'smooth', block:'center'});
+        target.classList.add('search-highlight');
+        setTimeout(()=>target.classList.remove('search-highlight'), 1800);
+      }
+    });
+  });
+}
+document.getElementById('avisoMorosBtn').addEventListener('click', ()=>{
+  renderAvisoMorosos();
+  document.getElementById('avisoMorosModal').hidden = false;
+});
+document.getElementById('avisoMorosCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('avisoMorosModal').hidden = true;
 });
 
 /* ============ AJUSTES ============ */
