@@ -600,8 +600,8 @@ select.emp-picker{
           <button class="btn" id="avisoSearchBtn">Buscar</button>
           <button class="btn" id="avisoMorosBtn">Morosos</button>
         </div>
-        <div id="avisoList"></div>
-        <div class="aviso-form">
+        <button type="button" class="link-toggle" id="avisoFormToggle">+ Nuevo pedido ▾</button>
+        <div class="aviso-form" id="avisoFormWrap" hidden>
           <input type="text" id="avisoNombre" placeholder="Nombre del cliente">
           <input type="tel" id="avisoTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
           <input type="text" id="avisoNota" placeholder="Nota (opcional)">
@@ -614,8 +614,9 @@ select.emp-picker{
             <button type="button" class="estado-btn" data-estado="senal">Señal €</button>
             <button type="button" class="estado-btn" data-estado="pagado">Pagado €</button>
           </div>
+          <button class="btn primary" style="width:100%;" id="addAvisoBtn">Añadir pedido</button>
         </div>
-        <button class="btn primary" style="width:100%; margin-top:8px;" id="addAvisoBtn">Añadir pedido</button>
+        <div id="avisoList"></div>
       </section>
 
       <!-- AJUSTES -->
@@ -2507,6 +2508,16 @@ document.querySelectorAll('#avisoEstadoBtns .estado-btn').forEach(btn=>{
 const avisoTotalInput = document.getElementById('avisoTotal');
 const avisoPagoInicialInput = document.getElementById('avisoPagoInicial');
 const avisoEstadoBtnsWrap = document.getElementById('avisoEstadoBtns');
+// El formulario de alta va replegado y arriba del todo (antes del listado), para
+// no tener que bajar hasta el final de la lista para añadir un pedido nuevo a
+// medida que se van acumulando.
+const avisoFormToggle = document.getElementById('avisoFormToggle');
+const avisoFormWrap = document.getElementById('avisoFormWrap');
+avisoFormToggle.addEventListener('click', ()=>{
+  avisoFormWrap.hidden = !avisoFormWrap.hidden;
+  avisoFormToggle.textContent = avisoFormWrap.hidden ? '+ Nuevo pedido ▾' : 'Ocultar formulario ▴';
+  if(!avisoFormWrap.hidden) document.getElementById('avisoNombre').focus();
+});
 avisoTotalInput.addEventListener('input', ()=>{
   const tieneTotal = parseFloat(avisoTotalInput.value) > 0;
   avisoPagoInicialInput.hidden = !tieneTotal;
