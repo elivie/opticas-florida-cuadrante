@@ -296,7 +296,7 @@ select.emp-picker{
 /* ---------- Avisos (pedidos listos para recoger) ---------- */
 .aviso-toolbar{display:flex; gap:8px; margin-bottom:14px;}
 .aviso-toolbar .btn{flex:1;}
-.aviso-item.search-highlight{outline:2px solid var(--accent); outline-offset:2px; transition:outline-color 1.4s ease;}
+.search-highlight{outline:2px solid var(--accent); outline-offset:2px; transition:outline-color 1.4s ease;}
 .aviso-form{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
 .aviso-form input{padding:10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); min-width:0;}
 .estado-btns{display:flex; gap:6px;}
@@ -335,15 +335,20 @@ select.emp-picker{
 .aviso-pagos-list{font-size:11px; color:var(--text-dim); margin-top:2px; overflow-wrap:anywhere;}
 .aviso-resumen-pendiente{font-size:11.5px; font-weight:800; color:rgb(var(--pendiente-rgb)); flex:0 0 auto;}
 .aviso-resumen-pendiente.cero{color:rgb(var(--pagado-rgb));}
-.aviso-deuda-total{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  background:rgba(var(--pendiente-rgb),.12); border:1px solid rgba(var(--pendiente-rgb),.35);
-  border-radius:10px; padding:9px 12px; margin-bottom:12px; font-size:13px; font-weight:700; color:rgb(var(--pendiente-rgb));
-}
 .aviso-moros-total{
   background:rgba(var(--pendiente-rgb),.12); border:1px solid rgba(var(--pendiente-rgb),.35);
   border-radius:10px; padding:9px 12px; margin-bottom:12px; font-size:13px; font-weight:700; color:rgb(var(--pendiente-rgb)); text-align:center;
 }
+.aviso-historial-count{
+  background:rgba(var(--pagado-rgb),.12); border:1px solid rgba(var(--pagado-rgb),.35);
+  border-radius:10px; padding:9px 12px; margin-bottom:12px; font-size:13px; font-weight:700; color:rgb(var(--pagado-rgb)); text-align:center;
+}
+.historial-row-wrap{padding:9px 2px; border-bottom:1px solid var(--border);}
+.historial-row-wrap:last-child{border-bottom:none;}
+.historial-row-wrap .aviso-resumen-row{border-bottom:none; padding:0;}
+.historial-meta{display:flex; align-items:center; gap:12px; margin-top:4px; font-size:11px; color:var(--text-dim);}
+.historial-meta button{background:none; border:none; font-size:11px; font-weight:700; padding:0; color:var(--accent);}
+.historial-meta button.historial-del{color:var(--danger);}
 .aviso-item button.aviso-del{background:none; border:none; color:var(--text-dim); font-size:16px; flex:0 0 auto;}
 .aviso-fecha{font-size:11px; color:var(--text-dim); font-weight:600; margin-top:3px;}
 .aviso-item.stale{border-color:rgba(245,158,11,.5);}
@@ -502,9 +507,10 @@ select.emp-picker{
   <!-- Modal resumen de avisos -->
   <div id="avisoResumenModal" class="modal-overlay" hidden>
     <div class="modal-card week-modal-card">
-      <h2>Resumen de pedidos</h2>
+      <h2>Historial de pedidos</h2>
+      <p class="hint">Pedidos ya entregados y cobrados del todo.</p>
       <div class="chip-row" id="avisoResumenStoreChips" style="margin-bottom:14px;"></div>
-      <div id="avisoResumenTotal" class="aviso-deuda-total" hidden></div>
+      <div id="avisoResumenTotal" class="aviso-historial-count" hidden></div>
       <div id="avisoResumenBody"></div>
       <button class="btn" id="avisoResumenCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
     </div>
@@ -529,6 +535,29 @@ select.emp-picker{
       <div id="avisoMorosTotal" class="aviso-moros-total" hidden></div>
       <div id="avisoMorosBody"></div>
       <button class="btn" id="avisoMorosCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Modal historial de taller (base de datos aparte de los pedidos) -->
+  <div id="tallerHistorialModal" class="modal-overlay" hidden>
+    <div class="modal-card week-modal-card">
+      <h2>Historial de taller</h2>
+      <p class="hint">Trabajos de taller ya entregados y cobrados del todo.</p>
+      <div class="chip-row" id="tallerHistorialStoreChips" style="margin-bottom:14px;"></div>
+      <div id="tallerHistorialTotal" class="aviso-historial-count" hidden></div>
+      <div id="tallerHistorialBody"></div>
+      <button class="btn" id="tallerHistorialCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Modal buscador de taller -->
+  <div id="tallerSearchModal" class="modal-overlay" hidden>
+    <div class="modal-card search-modal-card">
+      <h2>Buscar en taller</h2>
+      <p class="hint">Busca por nombre o teléfono, en las tres tiendas a la vez.</p>
+      <input type="text" class="date-input" id="tallerSearchInput" placeholder="Ej: 757583838 o Pons" autocomplete="off" style="margin-bottom:0;">
+      <div id="tallerSearchResults"></div>
+      <button class="btn" id="tallerSearchCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
     </div>
   </div>
 
@@ -595,28 +624,59 @@ select.emp-picker{
       <!-- AVISOS -->
       <section id="tab-avisos" class="tab-panel">
         <div class="chip-row" id="avisoStoreChips"></div>
-        <div class="aviso-toolbar">
-          <button class="btn" id="avisoResumenBtn">Resumen</button>
-          <button class="btn" id="avisoSearchBtn">Buscar</button>
-          <button class="btn" id="avisoMorosBtn">Morosos</button>
-        </div>
-        <button type="button" class="link-toggle" id="avisoFormToggle">+ Nuevo pedido ▾</button>
-        <div class="aviso-form" id="avisoFormWrap" hidden>
-          <input type="text" id="avisoNombre" placeholder="Nombre del cliente">
-          <input type="tel" id="avisoTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
-          <input type="text" id="avisoNota" placeholder="Nota (opcional)">
-          <div class="aviso-total-row">
-            <input type="number" id="avisoTotal" placeholder="Total (€, opcional)" inputmode="decimal" min="0" step="0.01">
-            <input type="number" id="avisoPagoInicial" placeholder="Pagado ahora (€)" inputmode="decimal" min="0" step="0.01" hidden>
+
+        <!-- Vista Pedidos (normales) -->
+        <div id="pedidosView">
+          <div class="aviso-toolbar">
+            <button class="btn" id="avisoResumenBtn">Historial</button>
+            <button class="btn" id="avisoSearchBtn">Buscar</button>
+            <button class="btn" id="avisoMorosBtn">Morosos</button>
+            <button class="btn" id="avisoTallerBtn">Taller<span class="tab-badge" id="tallerBtnBadge" hidden>0</span></button>
           </div>
-          <div class="estado-btns" id="avisoEstadoBtns">
-            <button type="button" class="estado-btn" data-estado="pendiente">Pendiente €</button>
-            <button type="button" class="estado-btn" data-estado="senal">Señal €</button>
-            <button type="button" class="estado-btn" data-estado="pagado">Pagado €</button>
+          <button type="button" class="link-toggle" id="avisoFormToggle">+ Nuevo pedido ▾</button>
+          <div class="aviso-form" id="avisoFormWrap" hidden>
+            <input type="text" id="avisoNombre" placeholder="Nombre del cliente">
+            <input type="tel" id="avisoTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
+            <input type="text" id="avisoNota" placeholder="Nota (opcional)">
+            <div class="aviso-total-row">
+              <input type="number" id="avisoTotal" placeholder="Total (€, opcional)" inputmode="decimal" min="0" step="0.01">
+              <input type="number" id="avisoPagoInicial" placeholder="Pagado ahora (€)" inputmode="decimal" min="0" step="0.01" hidden>
+            </div>
+            <div class="estado-btns" id="avisoEstadoBtns">
+              <button type="button" class="estado-btn" data-estado="pendiente">Pendiente €</button>
+              <button type="button" class="estado-btn" data-estado="senal">Señal €</button>
+              <button type="button" class="estado-btn" data-estado="pagado">Pagado €</button>
+            </div>
+            <button class="btn primary" style="width:100%;" id="addAvisoBtn">Añadir pedido</button>
           </div>
-          <button class="btn primary" style="width:100%;" id="addAvisoBtn">Añadir pedido</button>
+          <div id="avisoList"></div>
         </div>
-        <div id="avisoList"></div>
+
+        <!-- Vista Taller (base de datos totalmente aparte de los pedidos normales) -->
+        <div id="tallerView" hidden>
+          <button type="button" class="link-toggle" id="tallerBackBtn">‹ Volver a pedidos</button>
+          <div class="aviso-toolbar">
+            <button class="btn" id="tallerHistorialBtn">Historial</button>
+            <button class="btn" id="tallerSearchBtn">Buscar</button>
+          </div>
+          <button type="button" class="link-toggle" id="tallerFormToggle">+ Nuevo en taller ▾</button>
+          <div class="aviso-form" id="tallerFormWrap" hidden>
+            <input type="text" id="tallerNombre" placeholder="Nombre del cliente">
+            <input type="tel" id="tallerTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
+            <input type="text" id="tallerNota" placeholder="Nota (opcional)">
+            <div class="aviso-total-row">
+              <input type="number" id="tallerTotal" placeholder="Total (€, opcional)" inputmode="decimal" min="0" step="0.01">
+              <input type="number" id="tallerPagoInicial" placeholder="Pagado ahora (€)" inputmode="decimal" min="0" step="0.01" hidden>
+            </div>
+            <div class="estado-btns" id="tallerEstadoBtns">
+              <button type="button" class="estado-btn" data-estado="pendiente">Pendiente €</button>
+              <button type="button" class="estado-btn" data-estado="senal">Señal €</button>
+              <button type="button" class="estado-btn" data-estado="pagado">Pagado €</button>
+            </div>
+            <button class="btn primary" style="width:100%;" id="addTallerBtn">Añadir a taller</button>
+          </div>
+          <div id="tallerList"></div>
+        </div>
       </section>
 
       <!-- AJUSTES -->
@@ -779,7 +839,8 @@ function seedData(){
     notes: {},    // 'YYYY-MM-DD' -> texto
     holidays: {}, // 'YYYY-MM-DD' -> true (festivo marcado a mano, aparte de los domingos)
     citas: { ALC:{}, POL:{}, ART:{} }, // citas[store]['YYYY-MM-DD'] -> [{hora,texto}]
-    avisos: { ALC:[], POL:[], ART:[] } // avisos[store] -> [{id,nombre,telefono,nota,estado,avisado,creado}]
+    avisos: { ALC:[], POL:[], ART:[] }, // avisos[store] -> [{id,nombre,telefono,nota,estado,avisado,creado,completado,total,pagos}]
+    taller: { ALC:[], POL:[], ART:[] }  // igual que avisos, pero para trabajos de taller (base de datos aparte)
   };
 }
 /* Se asegura de que DATA.avisos tenga la forma correcta, tanto para datos
@@ -787,8 +848,10 @@ function seedData(){
    servidor (que puede ser una copia antigua). */
 function ensureAvisosShape(data){
   if(!data.avisos || typeof data.avisos !== 'object') data.avisos = {};
+  if(!data.taller || typeof data.taller !== 'object') data.taller = {}; // pedidos de taller: base de datos aparte
   STORES.forEach(s=>{
     if(!Array.isArray(data.avisos[s.code])) data.avisos[s.code] = [];
+    if(!Array.isArray(data.taller[s.code])) data.taller[s.code] = [];
   });
 }
 
@@ -853,6 +916,7 @@ let state = {
   citaStore: 'ALC',
   citaWeekAnchor: null, // lunes (YYYY-MM-DD) de la semana que se ve en el resumen semanal de citas
   avisoStore: 'ALC',
+  avisoView: 'pedidos', // 'pedidos' | 'taller' — qué lista se ve dentro de la pestaña Pedidos
   who: localStorage.getItem(WHO_KEY) || null,
   editMode: false,
   editBrush: 'M',
@@ -957,6 +1021,7 @@ async function syncPull(){
     if(cleanOrphanData(DATA)) syncPush(); // había turnos de empleados ya borrados: limpiamos y lo subimos para que todos vean la copia limpia
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
     updateAvisoTabBadge(); // por si han cambiado los pedidos desde otro dispositivo
+    updateTallerBtnBadge();
   }
 }
 function renderActiveTab(){
@@ -2280,7 +2345,12 @@ document.getElementById('addCitaBtn').addEventListener('click', ()=>{
   renderCitaList();
 });
 
-/* ============ AVISOS (pedidos listos para recoger) ============ */
+/* ============ AVISOS (pedidos listos para recoger) + TALLER ============ */
+// Pedidos y Taller comparten exactamente la misma mecánica (nombre, teléfono,
+// nota, total/pagos, fecha, check de entregado...) pero son dos bases de datos
+// totalmente aparte (DATA.avisos y DATA.taller). Para no duplicar 300 líneas de
+// código casi idéntico, las funciones de aquí abajo están parametrizadas por
+// "dataKey" ('avisos' o 'taller') en vez de repetirse una vez por cada una.
 const AVISO_STALE_DAYS = 14; // a partir de cuántos días sin avisar se resalta como "olvidado"
 function fmtTimestampShort(ts){
   const d = new Date(ts);
@@ -2290,10 +2360,9 @@ function fmtEuro(n){
   const v = Math.round((n || 0) * 100) / 100;
   return (Number.isInteger(v) ? String(v) : v.toFixed(2)) + ' €';
 }
-// A partir de aquí, "seguimiento de importes": un pedido puede llevar un total
-// pactado y una lista de pagos (cada uno con su fecha) en vez de solo un estado
-// suelto. Si no tiene total (pedidos de antes, o simplemente sin precio fijado),
-// todo esto se ignora y sigue funcionando el estado manual de siempre.
+// "Seguimiento de importes": un pedido puede llevar un total pactado y una lista
+// de pagos (cada uno con su fecha) en vez de solo un estado suelto. Si no tiene
+// total, todo esto se ignora y sigue funcionando el estado manual de siempre.
 function avisoPagadoTotal(item){
   if(!item.pagos || !item.pagos.length) return 0;
   return Math.round(item.pagos.reduce((s,p)=>s+(p.monto||0), 0) * 100) / 100;
@@ -2311,8 +2380,8 @@ function avisoRecalcEstado(item){
   return 'pendiente';
 }
 // Número junto a la pestaña "Pedidos": pedidos de las tres tiendas que aún no se han
-// marcado como avisados. Se llama tras cualquier cambio en avisos y tras cada
-// sincronización con el servidor, para que se vea aunque no tengas la pestaña abierta.
+// marcado como avisados. Se llama tras cualquier cambio y tras cada sincronización
+// con el servidor, para que se vea aunque no tengas la pestaña abierta.
 function updateAvisoTabBadge(){
   const badge = document.getElementById('avisoTabBadge');
   if(!badge) return;
@@ -2320,12 +2389,19 @@ function updateAvisoTabBadge(){
   STORES.forEach(s=>{
     (DATA.avisos[s.code] || []).forEach(a=>{ if(!a.avisado) count++; });
   });
-  if(count > 0){
-    badge.textContent = count > 99 ? '99+' : String(count);
-    badge.hidden = false;
-  }else{
-    badge.hidden = true;
-  }
+  if(count > 0){ badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = false; }
+  else{ badge.hidden = true; }
+}
+// Lo mismo pero para el botón "Taller" dentro de Pedidos (no tiene pestaña propia arriba).
+function updateTallerBtnBadge(){
+  const badge = document.getElementById('tallerBtnBadge');
+  if(!badge) return;
+  let count = 0;
+  STORES.forEach(s=>{
+    (DATA.taller[s.code] || []).forEach(a=>{ if(!a.avisado) count++; });
+  });
+  if(count > 0){ badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = false; }
+  else{ badge.hidden = true; }
 }
 function renderAvisoStoreChips(){
   const wrap = document.getElementById('avisoStoreChips');
@@ -2337,100 +2413,107 @@ function renderAvisoStoreChips(){
     });
   });
 }
-function renderAvisoList(){
-  updateAvisoTabBadge();
-  const wrap = document.getElementById('avisoList');
-  const arr = DATA.avisos[state.avisoStore] || [];
+// Genera la ficha de un pedido/trabajo (siempre uno todavía no entregado: los ya
+// entregados no pasan por aquí, viven en el historial). Igual para avisos y taller.
+function avisoItemCardHtml(a, now){
+  const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
+  const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
+  const notaHtml = `<div class="aviso-nota clickable${a.nota ? '' : ' aviso-nota-empty'}" data-id="${a.id}" title="Toca para editar la nota">${a.nota ? escHtml(a.nota) : '+ Añadir nota'}</div>`;
+  // La fecha se guarda sola al crearlo (no hay que escribirla a mano) y se
+  // muestra siempre, para saber de un vistazo cuándo se hizo cada uno.
+  const fechaCreado = a.creado || now;
+  const fechaHtml = `<div class="aviso-fecha">Pedido: ${fmtTimestampShort(fechaCreado)}</div>`;
+  // Los que llevan mucho tiempo sin avisar se resaltan aparte, para que no se
+  // queden olvidados entre los demás a medida que se acumulan.
+  const ageDays = Math.floor((now - fechaCreado) / 86400000);
+  const isStale = ageDays >= AVISO_STALE_DAYS;
+  const staleHtml = isStale ? `<div class="aviso-stale-note">Pendiente desde hace ${ageDays} días</div>` : '';
+  // Si lleva un total pactado, el estado se calcula solo a partir de los pagos
+  // registrados, así que la etiqueta deja de poder tocarse a mano.
+  const tieneTotal = typeof a.total === 'number';
+  const estadoTitle = tieneTotal ? 'Estado calculado a partir de los pagos registrados' : 'Toca para cambiar el estado de pago';
+  let dineroHtml = '';
+  if(tieneTotal){
+    const pagado = avisoPagadoTotal(a);
+    const pendiente = avisoPendienteMonto(a);
+    const pagosListHtml = (a.pagos && a.pagos.length)
+      ? `<div class="aviso-pagos-list">Pagos: ${a.pagos.map(p=>`${fmtEuro(p.monto)} · ${fmtTimestampShort(p.fecha)}`).join(', ')}</div>`
+      : '';
+    const addPagoHtml = pendiente > 0 ? `<button type="button" class="aviso-add-pago" data-id="${a.id}">+ Añadir pago</button>` : '';
+    dineroHtml = `<div class="aviso-dinero">
+      <span>Total ${fmtEuro(a.total)}</span>
+      <span>Pagado ${fmtEuro(pagado)}</span>
+      <span class="aviso-pendiente-monto${pendiente>0?'':' cero'}">Pendiente ${fmtEuro(pendiente)}</span>
+      ${addPagoHtml}
+    </div>${pagosListHtml}`;
+  }
+  return `<div class="aviso-item${isStale ? ' stale' : ''}" data-id="${a.id}">
+    <input type="checkbox" class="aviso-check" title="Marcar como entregado y pagado del todo">
+    <div class="aviso-item-body">
+      <div class="aviso-item-top">
+        <span class="aviso-nombre">${escHtml(a.nombre)}</span>
+        <span class="aviso-estado-badge ${tieneTotal ? '' : 'clickable'} ${a.estado}" data-id="${a.id}" title="${estadoTitle}">${estadoLabel[a.estado] || a.estado}</span>
+        ${telHtml}
+      </div>
+      ${dineroHtml}
+      ${fechaHtml}
+      ${staleHtml}
+      ${notaHtml}
+    </div>
+    <button class="aviso-del" data-id="${a.id}">&times;</button>
+  </div>`;
+}
+// Resalta un elemento ya presente en pantalla (usado al llegar desde el buscador o Morosos).
+function highlightEl(target){
+  if(!target) return;
+  target.scrollIntoView({behavior:'smooth', block:'center'});
+  target.classList.add('search-highlight');
+  setTimeout(()=>target.classList.remove('search-highlight'), 1800);
+}
+// Lista principal (pedidos o taller, según dataKey): solo lo que TODAVÍA no se ha
+// entregado. En cuanto se marca el check, desaparece de aquí y pasa al historial,
+// para que la lista no crezca sin fin.
+function renderAvisoOrTallerList(dataKey, listElId, itemLabel){
+  if(dataKey === 'avisos') updateAvisoTabBadge(); else updateTallerBtnBadge();
+  const wrap = document.getElementById(listElId);
+  const arr = (DATA[dataKey][state.avisoStore] || []).filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
   if(!arr.length){
-    wrap.innerHTML = `<div class="empty-state">Sin pedidos en esta tienda.</div>`;
+    wrap.innerHTML = `<div class="empty-state">Sin ${itemLabel==='pedido' ? 'pedidos' : 'trabajos de taller'} en esta tienda.</div>`;
     return;
   }
-  // Los pendientes de avisar arriba (más recientes primero); los ya avisados
-  // se quedan visibles debajo, atenuados, en vez de desaparecer de la lista.
-  const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
-  const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
-  const ordered = [...pendientes, ...avisados];
-  const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
   const now = Date.now();
-  wrap.innerHTML = ordered.map(a=>{
-    const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
-    const notaHtml = `<div class="aviso-nota clickable${a.nota ? '' : ' aviso-nota-empty'}" data-id="${a.id}" title="Toca para editar la nota">${a.nota ? escHtml(a.nota) : '+ Añadir nota'}</div>`;
-    // La fecha del pedido se guarda sola al crearlo (no hay que escribirla a mano) y
-    // se muestra siempre, para saber de un vistazo cuándo se hizo cada uno.
-    const fechaCreado = a.creado || now;
-    const fechaHtml = `<div class="aviso-fecha">Pedido: ${fmtTimestampShort(fechaCreado)}</div>`;
-    // Pedidos que llevan mucho tiempo sin avisar se resaltan aparte, para que no se
-    // queden olvidados entre los demás a medida que se acumulan.
-    const ageDays = Math.floor((now - fechaCreado) / 86400000);
-    const isStale = !a.avisado && ageDays >= AVISO_STALE_DAYS;
-    const staleHtml = isStale ? `<div class="aviso-stale-note">Pendiente desde hace ${ageDays} días</div>` : '';
-    // Si el pedido lleva un total pactado, el estado (pendiente/señal/pagado) se
-    // calcula solo a partir de los pagos registrados, así que la etiqueta deja de
-    // poder tocarse a mano (se movería sola en el siguiente pago, o al entregar).
-    const tieneTotal = typeof a.total === 'number';
-    const estadoClickable = !a.avisado && !tieneTotal;
-    const estadoTitle = tieneTotal
-      ? 'Estado calculado a partir de los pagos registrados'
-      : (a.avisado ? 'Desmarca \'avisado\' para poder cambiar el estado' : 'Toca para cambiar el estado de pago');
-    let dineroHtml = '';
-    if(tieneTotal){
-      const pagado = avisoPagadoTotal(a);
-      const pendiente = avisoPendienteMonto(a);
-      const pagosListHtml = (a.pagos && a.pagos.length)
-        ? `<div class="aviso-pagos-list">Pagos: ${a.pagos.map(p=>`${fmtEuro(p.monto)} · ${fmtTimestampShort(p.fecha)}`).join(', ')}</div>`
-        : '';
-      const addPagoHtml = pendiente > 0 ? `<button type="button" class="aviso-add-pago" data-id="${a.id}">+ Añadir pago</button>` : '';
-      dineroHtml = `<div class="aviso-dinero">
-        <span>Total ${fmtEuro(a.total)}</span>
-        <span>Pagado ${fmtEuro(pagado)}</span>
-        <span class="aviso-pendiente-monto${pendiente>0?'':' cero'}">Pendiente ${fmtEuro(pendiente)}</span>
-        ${addPagoHtml}
-      </div>${pagosListHtml}`;
-    }
-    return `<div class="aviso-item${a.avisado ? ' avisado' : ''}${isStale ? ' stale' : ''}" data-id="${a.id}">
-      <input type="checkbox" class="aviso-check" ${a.avisado ? 'checked' : ''} title="Marcar como avisado">
-      <div class="aviso-item-body">
-        <div class="aviso-item-top">
-          <span class="aviso-nombre">${escHtml(a.nombre)}</span>
-          <span class="aviso-estado-badge ${estadoClickable ? 'clickable' : ''} ${a.estado}" data-id="${a.id}" title="${estadoTitle}">${estadoLabel[a.estado] || a.estado}</span>
-          ${telHtml}
-        </div>
-        ${dineroHtml}
-        ${fechaHtml}
-        ${staleHtml}
-        ${notaHtml}
-      </div>
-      <button class="aviso-del" data-id="${a.id}">&times;</button>
-    </div>`;
-  }).join('');
+  wrap.innerHTML = arr.map(a=>avisoItemCardHtml(a, now)).join('');
+  const rerender = ()=>renderAvisoOrTallerList(dataKey, listElId, itemLabel);
+  const entregaTexto = itemLabel==='pedido' ? 'el pedido' : 'el trabajo de taller';
   wrap.querySelectorAll('.aviso-check').forEach(chk=>{
     chk.addEventListener('change', ()=>{
       const id = chk.closest('.aviso-item').dataset.id;
-      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      const item = DATA[dataKey][state.avisoStore].find(x=>x.id===id);
       if(!item) return;
-      item.avisado = chk.checked;
-      if(chk.checked){
-        // se entrega = se da por cobrado del todo. Si llevaba un total pactado y
-        // quedaba algo pendiente, se registra ese resto como el pago final.
-        if(typeof item.total === 'number'){
-          const pendiente = avisoPendienteMonto(item);
-          if(pendiente > 0){
-            item.pagos = item.pagos || [];
-            item.pagos.push({monto: pendiente, fecha: Date.now()});
-          }
-          item.estado = avisoRecalcEstado(item);
-        } else {
-          item.estado = 'pagado';
+      const ok = confirm(`¿Confirmas que ${item.nombre} ha recogido ${entregaTexto} y está pagado del todo?\n\nPasará al historial.`);
+      if(!ok){ chk.checked = false; return; }
+      item.avisado = true;
+      item.completado = Date.now();
+      // se entrega = se da por cobrado del todo. Si llevaba un total pactado y
+      // quedaba algo pendiente, se registra ese resto como el pago final.
+      if(typeof item.total === 'number'){
+        const pendiente = avisoPendienteMonto(item);
+        if(pendiente > 0){
+          item.pagos = item.pagos || [];
+          item.pagos.push({monto: pendiente, fecha: Date.now()});
         }
+        item.estado = avisoRecalcEstado(item);
+      } else {
+        item.estado = 'pagado';
       }
       saveData();
-      renderAvisoList();
+      rerender();
     });
   });
   wrap.querySelectorAll('.aviso-add-pago').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.dataset.id;
-      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      const item = DATA[dataKey][state.avisoStore].find(x=>x.id===id);
       if(!item) return;
       const pendiente = avisoPendienteMonto(item);
       const val = prompt(`Nuevo pago de ${item.nombre} (pendiente: ${fmtEuro(pendiente)}):`, '');
@@ -2441,194 +2524,239 @@ function renderAvisoList(){
       item.pagos.push({monto: Math.round(monto * 100) / 100, fecha: Date.now()});
       item.estado = avisoRecalcEstado(item);
       saveData();
-      renderAvisoList();
+      rerender();
     });
   });
   wrap.querySelectorAll('.aviso-del').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.dataset.id;
-      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
-      if(!confirm(`¿Borrar el pedido de ${item ? item.nombre : 'este cliente'}?\n\nNo se puede deshacer.`)) return;
-      DATA.avisos[state.avisoStore] = DATA.avisos[state.avisoStore].filter(x=>x.id!==id);
+      const item = DATA[dataKey][state.avisoStore].find(x=>x.id===id);
+      if(!confirm(`¿Borrar ${entregaTexto} de ${item ? item.nombre : 'este cliente'}?\n\nNo se puede deshacer.`)) return;
+      DATA[dataKey][state.avisoStore] = DATA[dataKey][state.avisoStore].filter(x=>x.id!==id);
       saveData();
-      renderAvisoList();
+      rerender();
     });
   });
   // Tocar la etiqueta de estado la va rotando: pendiente -> señal -> pagado -> pendiente...
-  // así se puede pasar a "pagado" más adelante (p. ej. cuando el cliente viene a recoger
-  // y paga el resto) sin tener que borrar el aviso y crearlo de nuevo.
   const estadoOrder = ['pendiente', 'senal', 'pagado'];
   wrap.querySelectorAll('.aviso-estado-badge.clickable').forEach(badge=>{
     badge.addEventListener('click', ()=>{
       const id = badge.dataset.id;
-      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      const item = DATA[dataKey][state.avisoStore].find(x=>x.id===id);
       if(!item) return;
       const idx = estadoOrder.indexOf(item.estado);
       item.estado = estadoOrder[(idx + 1) % estadoOrder.length];
       saveData();
-      renderAvisoList();
+      rerender();
     });
   });
-  // Tocar la nota la deja editar (p. ej. para apuntar "pagadas 2 de 4 cuotas"),
-  // en cualquier momento, esté avisado o no.
+  // Tocar la nota la deja editar (p. ej. para apuntar "pagadas 2 de 4 cuotas").
   wrap.querySelectorAll('.aviso-nota.clickable').forEach(el=>{
     el.addEventListener('click', ()=>{
       const id = el.dataset.id;
-      const item = DATA.avisos[state.avisoStore].find(x=>x.id===id);
+      const item = DATA[dataKey][state.avisoStore].find(x=>x.id===id);
       if(!item) return;
       const val = prompt(`Nota para ${item.nombre}:`, item.nota || '');
       if(val === null) return; // cancelado
       const trimmed = val.trim();
       if(trimmed) item.nota = trimmed; else delete item.nota;
       saveData();
-      renderAvisoList();
+      rerender();
     });
   });
 }
+function renderAvisoList(){ renderAvisoOrTallerList('avisos', 'avisoList', 'pedido'); }
+function renderTallerList(){ renderAvisoOrTallerList('taller', 'tallerList', 'trabajo'); }
+// Cambia entre la vista de Pedidos normales y la de Taller (dos listas totalmente
+// aparte, pero dentro de la misma pestaña, compartiendo los chips de tienda de arriba).
+function switchAvisoView(view){
+  state.avisoView = view;
+  document.getElementById('pedidosView').hidden = view !== 'pedidos';
+  document.getElementById('tallerView').hidden = view !== 'taller';
+  if(view === 'taller') renderTallerList(); else renderAvisoList();
+}
 function renderAvisos(){
   renderAvisoStoreChips();
-  renderAvisoList();
+  if(state.avisoView === 'taller') renderTallerList(); else renderAvisoList();
 }
-let avisoFormEstado = 'pendiente';
-function syncAvisoEstadoBtns(){
-  document.querySelectorAll('#avisoEstadoBtns .estado-btn').forEach(b=>{
-    b.classList.toggle('selected', b.dataset.estado===avisoFormEstado);
-  });
-}
-syncAvisoEstadoBtns();
-document.querySelectorAll('#avisoEstadoBtns .estado-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    avisoFormEstado = btn.dataset.estado;
-    syncAvisoEstadoBtns();
-  });
-});
-// Si se pone un total, el estado deja de elegirse a mano (se calcula solo a
-// partir de los pagos), así que los botones de estado se ocultan y en su lugar
-// se puede indicar cuánto se ha pagado ya (p. ej. la señal, al hacer el pedido).
-const avisoTotalInput = document.getElementById('avisoTotal');
-const avisoPagoInicialInput = document.getElementById('avisoPagoInicial');
-const avisoEstadoBtnsWrap = document.getElementById('avisoEstadoBtns');
-// El formulario de alta va replegado y arriba del todo (antes del listado), para
-// no tener que bajar hasta el final de la lista para añadir un pedido nuevo a
-// medida que se van acumulando.
-const avisoFormToggle = document.getElementById('avisoFormToggle');
-const avisoFormWrap = document.getElementById('avisoFormWrap');
-avisoFormToggle.addEventListener('click', ()=>{
-  avisoFormWrap.hidden = !avisoFormWrap.hidden;
-  avisoFormToggle.textContent = avisoFormWrap.hidden ? '+ Nuevo pedido ▾' : 'Ocultar formulario ▴';
-  if(!avisoFormWrap.hidden) document.getElementById('avisoNombre').focus();
-});
-avisoTotalInput.addEventListener('input', ()=>{
-  const tieneTotal = parseFloat(avisoTotalInput.value) > 0;
-  avisoPagoInicialInput.hidden = !tieneTotal;
-  avisoEstadoBtnsWrap.hidden = tieneTotal;
-  if(!tieneTotal) avisoPagoInicialInput.value = '';
-});
-document.getElementById('addAvisoBtn').addEventListener('click', ()=>{
-  const nombre = document.getElementById('avisoNombre').value.trim();
-  const telefono = document.getElementById('avisoTelefono').value.trim();
-  const nota = document.getElementById('avisoNota').value.trim();
-  if(!nombre) return;
-  if(!DATA.avisos[state.avisoStore]) DATA.avisos[state.avisoStore] = [];
-  const entry = {
-    id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,7),
-    nombre, avisado: false, creado: Date.now()
-  };
-  if(telefono) entry.telefono = telefono;
-  if(nota) entry.nota = nota;
-  const totalVal = parseFloat(avisoTotalInput.value);
-  if(totalVal > 0){
-    entry.total = Math.round(totalVal * 100) / 100;
-    entry.pagos = [];
-    const pagoInicial = parseFloat(avisoPagoInicialInput.value);
-    if(pagoInicial > 0) entry.pagos.push({monto: Math.round(pagoInicial * 100) / 100, fecha: Date.now()});
-    entry.estado = avisoRecalcEstado(entry);
-  } else {
-    entry.estado = avisoFormEstado;
-  }
-  DATA.avisos[state.avisoStore].push(entry);
-  document.getElementById('avisoNombre').value = '';
-  document.getElementById('avisoTelefono').value = '';
-  document.getElementById('avisoNota').value = '';
-  avisoTotalInput.value = '';
-  avisoPagoInicialInput.value = '';
-  avisoPagoInicialInput.hidden = true;
-  avisoEstadoBtnsWrap.hidden = false;
-  avisoFormEstado = 'pendiente';
-  syncAvisoEstadoBtns();
-  saveData();
-  renderAvisoList();
-});
+document.getElementById('avisoTallerBtn').addEventListener('click', ()=>switchAvisoView('taller'));
+document.getElementById('tallerBackBtn').addEventListener('click', ()=>switchAvisoView('pedidos'));
 
-/* ---------- Resumen de avisos ---------- */
-function renderAvisoResumenStoreChips(){
-  const wrap = document.getElementById('avisoResumenStoreChips');
+// Formulario de alta (compartido entre Pedidos y Taller mediante los mismos ids
+// con prefijo distinto). Va replegado y arriba del todo (antes del listado), para
+// no tener que bajar hasta el final de la lista para añadir uno nuevo.
+function wireAvisoAddForm(dataKey, ids, itemLabel){
+  let formEstado = 'pendiente';
+  const estadoBtnsWrap = document.getElementById(ids.estadoBtns);
+  const totalInput = document.getElementById(ids.total);
+  const pagoInicialInput = document.getElementById(ids.pagoInicial);
+  const formToggle = document.getElementById(ids.formToggle);
+  const formWrap = document.getElementById(ids.formWrap);
+  function syncEstadoBtns(){
+    estadoBtnsWrap.querySelectorAll('.estado-btn').forEach(b=>{
+      b.classList.toggle('selected', b.dataset.estado===formEstado);
+    });
+  }
+  syncEstadoBtns();
+  estadoBtnsWrap.querySelectorAll('.estado-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ formEstado = btn.dataset.estado; syncEstadoBtns(); });
+  });
+  formToggle.addEventListener('click', ()=>{
+    formWrap.hidden = !formWrap.hidden;
+    formToggle.textContent = formWrap.hidden ? `+ Nuevo ${itemLabel==='pedido'?'pedido':'en taller'} ▾` : 'Ocultar formulario ▴';
+    if(!formWrap.hidden) document.getElementById(ids.nombre).focus();
+  });
+  // Si se pone un total, el estado deja de elegirse a mano (se calcula solo a
+  // partir de los pagos), así que los botones de estado se ocultan y en su lugar
+  // se puede indicar cuánto se ha pagado ya (p. ej. la señal, al hacerlo).
+  totalInput.addEventListener('input', ()=>{
+    const tieneTotal = parseFloat(totalInput.value) > 0;
+    pagoInicialInput.hidden = !tieneTotal;
+    estadoBtnsWrap.hidden = tieneTotal;
+    if(!tieneTotal) pagoInicialInput.value = '';
+  });
+  document.getElementById(ids.addBtn).addEventListener('click', ()=>{
+    const nombre = document.getElementById(ids.nombre).value.trim();
+    const telefono = document.getElementById(ids.telefono).value.trim();
+    const nota = document.getElementById(ids.nota).value.trim();
+    if(!nombre) return;
+    if(!DATA[dataKey][state.avisoStore]) DATA[dataKey][state.avisoStore] = [];
+    const entry = {
+      id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+      nombre, avisado: false, creado: Date.now()
+    };
+    if(telefono) entry.telefono = telefono;
+    if(nota) entry.nota = nota;
+    const totalVal = parseFloat(totalInput.value);
+    if(totalVal > 0){
+      entry.total = Math.round(totalVal * 100) / 100;
+      entry.pagos = [];
+      const pagoInicial = parseFloat(pagoInicialInput.value);
+      if(pagoInicial > 0) entry.pagos.push({monto: Math.round(pagoInicial * 100) / 100, fecha: Date.now()});
+      entry.estado = avisoRecalcEstado(entry);
+    } else {
+      entry.estado = formEstado;
+    }
+    DATA[dataKey][state.avisoStore].push(entry);
+    document.getElementById(ids.nombre).value = '';
+    document.getElementById(ids.telefono).value = '';
+    document.getElementById(ids.nota).value = '';
+    totalInput.value = '';
+    pagoInicialInput.value = '';
+    pagoInicialInput.hidden = true;
+    estadoBtnsWrap.hidden = false;
+    formEstado = 'pendiente';
+    syncEstadoBtns();
+    saveData();
+    if(dataKey==='avisos') renderAvisoList(); else renderTallerList();
+  });
+}
+wireAvisoAddForm('avisos', {
+  formToggle:'avisoFormToggle', formWrap:'avisoFormWrap', nombre:'avisoNombre', telefono:'avisoTelefono',
+  nota:'avisoNota', total:'avisoTotal', pagoInicial:'avisoPagoInicial', estadoBtns:'avisoEstadoBtns', addBtn:'addAvisoBtn'
+}, 'pedido');
+wireAvisoAddForm('taller', {
+  formToggle:'tallerFormToggle', formWrap:'tallerFormWrap', nombre:'tallerNombre', telefono:'tallerTelefono',
+  nota:'tallerNota', total:'tallerTotal', pagoInicial:'tallerPagoInicial', estadoBtns:'tallerEstadoBtns', addBtn:'addTallerBtn'
+}, 'trabajo');
+
+/* ---------- Historial (pedidos/trabajos ya entregados y cobrados del todo) ---------- */
+function renderHistorialStoreChips(chipsElId, onSwitch){
+  const wrap = document.getElementById(chipsElId);
   wrap.innerHTML = STORES.map(s=>`<button class="chip ${state.avisoStore===s.code?'active':''}" data-code="${s.code}">${s.name}</button>`).join('');
   wrap.querySelectorAll('.chip').forEach(ch=>{
     ch.addEventListener('click', ()=>{
       state.avisoStore = ch.dataset.code;
-      renderAvisoStoreChips(); // mantiene sincronizados los chips de la pestaña Avisos
-      renderAvisoList();
-      renderAvisoResumen();
+      renderAvisoStoreChips(); // mantiene sincronizados los chips de arriba de la pestaña
+      onSwitch();
     });
   });
 }
-function renderAvisoResumen(){
-  renderAvisoResumenStoreChips();
-  const arr = DATA.avisos[state.avisoStore] || [];
-  const body = document.getElementById('avisoResumenBody');
-  const totalWrap = document.getElementById('avisoResumenTotal');
+function renderHistorial(dataKey, ids, itemLabel){
+  const wrap = document.getElementById(ids.body);
+  const totalWrap = document.getElementById(ids.total);
+  const arr = (DATA[dataKey][state.avisoStore] || []).filter(a=>a.avisado)
+    .sort((a,b)=>(b.completado||b.creado) - (a.completado||a.creado));
+  const plural = itemLabel==='pedido' ? 'pedidos' : 'trabajos';
   if(!arr.length){
-    body.innerHTML = `<div class="empty-state">Sin pedidos en esta tienda.</div>`;
+    wrap.innerHTML = `<div class="empty-state">Todavía no hay ${plural} entregados en esta tienda.</div>`;
     totalWrap.hidden = true;
     return;
   }
-  // Suma de lo pendiente de cobrar en esta tienda (solo cuenta los pedidos que
-  // llevan un total pactado; los que solo tienen el estado antiguo no aportan cifra).
-  const deudaTotal = arr.reduce((s,a)=> typeof a.total==='number' ? s + avisoPendienteMonto(a) : s, 0);
-  if(deudaTotal > 0){
-    totalWrap.hidden = false;
-    totalWrap.textContent = `Pendiente de cobrar: ${fmtEuro(deudaTotal)}`;
-  }else{
-    totalWrap.hidden = true;
-  }
-  const pendientes = arr.filter(a=>!a.avisado).sort((a,b)=>b.creado-a.creado);
-  const avisados = arr.filter(a=>a.avisado).sort((a,b)=>b.creado-a.creado);
-  const ordered = [...pendientes, ...avisados];
-  const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
-  body.innerHTML = ordered.map(a=>{
+  totalWrap.hidden = false;
+  const singular = itemLabel==='pedido' ? 'pedido' : 'trabajo';
+  totalWrap.textContent = arr.length===1 ? `1 ${singular} entregado` : `${arr.length} ${plural} entregados`;
+  wrap.innerHTML = arr.map(a=>{
     const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
-    // Lo que más se consulta aquí es cuánto queda por cobrar, así que si el pedido
-    // lleva un total pactado se muestra el importe pendiente en vez del estado.
-    const pendMonto = typeof a.total === 'number' ? avisoPendienteMonto(a) : null;
-    const estadoHtml = pendMonto !== null
-      ? `<span class="aviso-resumen-pendiente${pendMonto>0?'':' cero'}">Pendiente ${fmtEuro(pendMonto)}</span>`
-      : `<span class="aviso-estado-badge ${a.estado}">${estadoLabel[a.estado] || a.estado}</span>`;
-    return `<div class="aviso-resumen-row${a.avisado ? ' avisado' : ''}">
-      <span class="aviso-resumen-nombre">${escHtml(a.nombre)}</span>
-      ${estadoHtml}
-      ${telHtml}
+    const montoHtml = typeof a.total === 'number'
+      ? `<span class="aviso-resumen-pendiente cero">${fmtEuro(a.total)}</span>`
+      : `<span class="aviso-estado-badge pagado">Pagado €</span>`;
+    const fecha = fmtTimestampShort(a.completado || a.creado);
+    return `<div class="historial-row-wrap" data-id="${a.id}">
+      <div class="aviso-resumen-row">
+        <span class="aviso-resumen-nombre">${escHtml(a.nombre)}</span>
+        ${montoHtml}
+        ${telHtml}
+      </div>
+      <div class="historial-meta">
+        <span>Entregado: ${fecha}</span>
+        <button type="button" class="historial-undo" data-id="${a.id}">Deshacer</button>
+        <button type="button" class="historial-del" data-id="${a.id}">Eliminar</button>
+      </div>
     </div>`;
   }).join('');
+  wrap.querySelectorAll('.historial-undo').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const item = DATA[dataKey][state.avisoStore].find(x=>x.id===id);
+      if(!item) return;
+      item.avisado = false;
+      saveData();
+      renderHistorial(dataKey, ids, itemLabel);
+      if(dataKey==='avisos') renderAvisoList(); else renderTallerList();
+    });
+  });
+  wrap.querySelectorAll('.historial-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const item = DATA[dataKey][state.avisoStore].find(x=>x.id===id);
+      if(!confirm(`¿Borrar del historial a ${item ? item.nombre : 'este cliente'}?\n\nNo se puede deshacer.`)) return;
+      DATA[dataKey][state.avisoStore] = DATA[dataKey][state.avisoStore].filter(x=>x.id!==id);
+      saveData();
+      renderHistorial(dataKey, ids, itemLabel);
+    });
+  });
 }
+function renderAvisoHistorial(){ renderHistorial('avisos', {total:'avisoResumenTotal', body:'avisoResumenBody'}, 'pedido'); }
 function openAvisoResumenModal(){
-  renderAvisoResumen();
+  renderHistorialStoreChips('avisoResumenStoreChips', renderAvisoHistorial);
+  renderAvisoHistorial();
   document.getElementById('avisoResumenModal').hidden = false;
 }
 document.getElementById('avisoResumenBtn').addEventListener('click', openAvisoResumenModal);
 document.getElementById('avisoResumenCloseBtn').addEventListener('click', ()=>{
   document.getElementById('avisoResumenModal').hidden = true;
 });
+function renderTallerHistorial(){ renderHistorial('taller', {total:'tallerHistorialTotal', body:'tallerHistorialBody'}, 'trabajo'); }
+function openTallerHistorialModal(){
+  renderHistorialStoreChips('tallerHistorialStoreChips', renderTallerHistorial);
+  renderTallerHistorial();
+  document.getElementById('tallerHistorialModal').hidden = false;
+}
+document.getElementById('tallerHistorialBtn').addEventListener('click', openTallerHistorialModal);
+document.getElementById('tallerHistorialCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('tallerHistorialModal').hidden = true;
+});
 
-/* ---------- Buscador de pedidos (todas las tiendas) ---------- */
-function searchAvisos(rawQuery){
+/* ---------- Buscador (pedidos o taller, todas las tiendas a la vez) ---------- */
+function searchAvisoOrTaller(dataKey, rawQuery){
   const q = rawQuery.trim();
   if(!q) return [];
   const normQuery = normalizeSearch(q);
   const digitsQuery = onlyDigits(q);
   const results = [];
   STORES.forEach(store=>{
-    (DATA.avisos[store.code] || []).forEach(a=>{
+    (DATA[dataKey][store.code] || []).forEach(a=>{
       const haystack = normalizeSearch(`${a.nombre} ${a.telefono||''} ${a.nota||''}`);
       const textMatch = haystack.includes(normQuery);
       const phoneMatch = digitsQuery.length>=3 && onlyDigits(a.telefono).includes(digitsQuery);
@@ -2644,14 +2772,14 @@ function searchAvisos(rawQuery){
   });
   return results;
 }
-function renderAvisoSearchResults(){
-  const q = document.getElementById('avisoSearchInput').value;
-  const wrap = document.getElementById('avisoSearchResults');
+function renderAvisoOrTallerSearchResults(dataKey, ids, itemLabel){
+  const q = document.getElementById(ids.input).value;
+  const wrap = document.getElementById(ids.results);
   if(!q.trim()){
     wrap.innerHTML = `<div class="empty-state">Escribe un nombre o un teléfono para buscar en las tres tiendas.</div>`;
     return;
   }
-  const results = searchAvisos(q);
+  const results = searchAvisoOrTaller(dataKey, q);
   if(!results.length){
     wrap.innerHTML = `<div class="empty-state">Sin resultados para "${escHtml(q.trim())}".</div>`;
     return;
@@ -2665,8 +2793,8 @@ function renderAvisoSearchResults(){
     const rPendMonto = typeof r.total === 'number'
       ? Math.max(0, Math.round((r.total - (r.pagos||[]).reduce((s,p)=>s+(p.monto||0),0)) * 100) / 100)
       : null;
-    const estadoOrPend = rPendMonto !== null ? `Pendiente ${fmtEuro(rPendMonto)}` : (estadoLabel[r.estado] || r.estado);
-    return `<button class="search-result" data-tienda="${r.tienda}" data-id="${r.id}">
+    const estadoOrPend = r.avisado ? 'Entregado' : (rPendMonto !== null ? `Pendiente ${fmtEuro(rPendMonto)}` : (estadoLabel[r.estado] || r.estado));
+    return `<button class="search-result" data-tienda="${r.tienda}" data-id="${r.id}" data-avisado="${r.avisado?'1':'0'}">
       <div class="search-result-top">
         <span class="search-result-store"><span class="search-dot" style="${dotStyle(r.tienda)}"></span>${store?store.name:r.tienda}</span>
         <span class="search-result-date">${estadoOrPend}</span>
@@ -2682,17 +2810,30 @@ function renderAvisoSearchResults(){
   wrap.querySelectorAll('.search-result[data-id]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       state.avisoStore = btn.dataset.tienda;
-      document.getElementById('avisoSearchModal').hidden = true;
-      renderAvisos();
-      const target = document.querySelector(`#avisoList .aviso-item[data-id="${btn.dataset.id}"]`);
-      if(target){
-        target.scrollIntoView({behavior:'smooth', block:'center'});
-        target.classList.add('search-highlight');
-        setTimeout(()=>target.classList.remove('search-highlight'), 1800);
+      document.getElementById(ids.modal).hidden = true;
+      renderAvisoStoreChips();
+      const isDelivered = btn.dataset.avisado === '1';
+      if(dataKey === 'avisos'){
+        switchAvisoView('pedidos');
+        if(isDelivered){
+          openAvisoResumenModal();
+          highlightEl(document.querySelector(`#avisoResumenBody .historial-row-wrap[data-id="${btn.dataset.id}"]`));
+        } else {
+          highlightEl(document.querySelector(`#avisoList .aviso-item[data-id="${btn.dataset.id}"]`));
+        }
+      } else {
+        switchAvisoView('taller');
+        if(isDelivered){
+          openTallerHistorialModal();
+          highlightEl(document.querySelector(`#tallerHistorialBody .historial-row-wrap[data-id="${btn.dataset.id}"]`));
+        } else {
+          highlightEl(document.querySelector(`#tallerList .aviso-item[data-id="${btn.dataset.id}"]`));
+        }
       }
     });
   });
 }
+function renderAvisoSearchResults(){ renderAvisoOrTallerSearchResults('avisos', {input:'avisoSearchInput', results:'avisoSearchResults', modal:'avisoSearchModal'}, 'pedido'); }
 document.getElementById('avisoSearchBtn').addEventListener('click', ()=>{
   const input = document.getElementById('avisoSearchInput');
   input.value = '';
@@ -2704,8 +2845,20 @@ document.getElementById('avisoSearchInput').addEventListener('input', renderAvis
 document.getElementById('avisoSearchCloseBtn').addEventListener('click', ()=>{
   document.getElementById('avisoSearchModal').hidden = true;
 });
+function renderTallerSearchResults(){ renderAvisoOrTallerSearchResults('taller', {input:'tallerSearchInput', results:'tallerSearchResults', modal:'tallerSearchModal'}, 'trabajo'); }
+document.getElementById('tallerSearchBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('tallerSearchInput');
+  input.value = '';
+  renderTallerSearchResults();
+  document.getElementById('tallerSearchModal').hidden = false;
+  setTimeout(()=>input.focus(), 50);
+});
+document.getElementById('tallerSearchInput').addEventListener('input', renderTallerSearchResults);
+document.getElementById('tallerSearchCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('tallerSearchModal').hidden = true;
+});
 
-/* ---------- Morosos: clientes con deuda pendiente, en las tres tiendas ---------- */
+/* ---------- Morosos: clientes con deuda pendiente, en las tres tiendas (solo Pedidos) ---------- */
 function renderAvisoMorosos(){
   const rows = [];
   STORES.forEach(store=>{
@@ -2742,13 +2895,9 @@ function renderAvisoMorosos(){
     btn.addEventListener('click', ()=>{
       state.avisoStore = btn.dataset.tienda;
       document.getElementById('avisoMorosModal').hidden = true;
-      renderAvisos();
-      const target = document.querySelector(`#avisoList .aviso-item[data-id="${btn.dataset.id}"]`);
-      if(target){
-        target.scrollIntoView({behavior:'smooth', block:'center'});
-        target.classList.add('search-highlight');
-        setTimeout(()=>target.classList.remove('search-highlight'), 1800);
-      }
+      renderAvisoStoreChips();
+      switchAvisoView('pedidos');
+      highlightEl(document.querySelector(`#avisoList .aviso-item[data-id="${btn.dataset.id}"]`));
     });
   });
 }
@@ -2953,6 +3102,7 @@ document.getElementById('restoreBackupBtn').addEventListener('click', ()=>{
     renderCuadrante();
     ensureWho();
     updateAvisoTabBadge();
+    updateTallerBtnBadge();
     alert('Copia de seguridad restaurada correctamente.');
   };
   reader.readAsText(file);
@@ -3024,6 +3174,7 @@ document.getElementById('autoBackupRestoreBtn').addEventListener('click', async 
     renderCuadrante();
     ensureWho();
     updateAvisoTabBadge();
+    updateTallerBtnBadge();
     alert('Copia automática restaurada correctamente.');
   }catch(e){
     alert('Sin conexión: no se ha podido restaurar ahora mismo.');
@@ -3159,6 +3310,7 @@ function startApp(){
   ensureWho();
   renderCuadrante();
   updateAvisoTabBadge();
+  updateTallerBtnBadge();
 }
 
 applyTheme();
