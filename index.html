@@ -353,6 +353,7 @@ select.emp-picker{
 .aviso-fecha{font-size:11px; color:var(--text-dim); font-weight:600; margin-top:3px;}
 .aviso-item.stale{border-color:rgba(245,158,11,.5);}
 .aviso-stale-note{font-size:11.5px; font-weight:700; color:rgb(245,158,11); margin-top:4px;}
+.aviso-dup-warning{font-size:12px; font-weight:700; color:rgb(245,158,11); margin-top:-2px;}
 .aviso-item.avisado{opacity:.55;}
 .aviso-item.avisado .aviso-nombre, .aviso-item.avisado .aviso-nota:not(.aviso-nota-empty){text-decoration:line-through;}
 .aviso-resumen-row{display:flex; align-items:center; gap:8px; padding:9px 2px; border-bottom:1px solid var(--border);}
@@ -512,7 +513,8 @@ select.emp-picker{
       <div class="chip-row" id="avisoResumenStoreChips" style="margin-bottom:14px;"></div>
       <div id="avisoResumenTotal" class="aviso-historial-count" hidden></div>
       <div id="avisoResumenBody"></div>
-      <button class="btn" id="avisoResumenCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+      <button class="btn" id="avisoHistorialExportBtn" style="width:100%; margin-top:14px;">Exportar CSV</button>
+      <button class="btn" id="avisoResumenCloseBtn" style="width:100%; margin-top:8px;">Cerrar</button>
     </div>
   </div>
 
@@ -546,7 +548,8 @@ select.emp-picker{
       <div class="chip-row" id="tallerHistorialStoreChips" style="margin-bottom:14px;"></div>
       <div id="tallerHistorialTotal" class="aviso-historial-count" hidden></div>
       <div id="tallerHistorialBody"></div>
-      <button class="btn" id="tallerHistorialCloseBtn" style="width:100%; margin-top:14px;">Cerrar</button>
+      <button class="btn" id="tallerHistorialExportBtn" style="width:100%; margin-top:14px;">Exportar CSV</button>
+      <button class="btn" id="tallerHistorialCloseBtn" style="width:100%; margin-top:8px;">Cerrar</button>
     </div>
   </div>
 
@@ -636,6 +639,7 @@ select.emp-picker{
           <button type="button" class="link-toggle" id="avisoFormToggle">+ Nuevo pedido ▾</button>
           <div class="aviso-form" id="avisoFormWrap" hidden>
             <input type="text" id="avisoNombre" placeholder="Nombre del cliente">
+            <div id="avisoDupWarning" class="aviso-dup-warning" hidden></div>
             <input type="tel" id="avisoTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
             <input type="text" id="avisoNota" placeholder="Nota (opcional)">
             <div class="aviso-total-row">
@@ -662,6 +666,7 @@ select.emp-picker{
           <button type="button" class="link-toggle" id="tallerFormToggle">+ Nuevo en taller ▾</button>
           <div class="aviso-form" id="tallerFormWrap" hidden>
             <input type="text" id="tallerNombre" placeholder="Nombre del cliente">
+            <div id="tallerDupWarning" class="aviso-dup-warning" hidden></div>
             <input type="tel" id="tallerTelefono" placeholder="Teléfono" inputmode="tel" autocomplete="off">
             <input type="text" id="tallerNota" placeholder="Nota (opcional)">
             <div class="aviso-total-row">
@@ -2216,7 +2221,7 @@ function telHref(phone){
   // algo llamable aunque el teléfono se haya escrito con espacios o guiones.
   return String(phone||'').replace(/[^\d+]/g, '');
 }
-function whatsappHref(phone){
+function whatsappHref(phone, mensaje){
   // wa.me necesita el número en formato internacional, solo dígitos (sin "+",
   // sin espacios ni guiones). Si el teléfono se ha escrito "a la española"
   // (9 dígitos, sin prefijo de país), le añadimos el 34 delante; si ya trae
@@ -2225,7 +2230,10 @@ function whatsappHref(phone){
   let digits = String(phone||'').replace(/\D/g, '');
   if(digits.startsWith('00')) digits = digits.slice(2);
   if(digits.length === 9) digits = '34' + digits;
-  return `https://wa.me/${digits}`;
+  const base = `https://wa.me/${digits}`;
+  // mensaje precargado (opcional): el cliente lo ve ya escrito en WhatsApp,
+  // listo para enviar tal cual o editar antes.
+  return mensaje ? `${base}?text=${encodeURIComponent(mensaje)}` : base;
 }
 function normalizeSearch(str){
   return String(str).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -2360,6 +2368,20 @@ function fmtEuro(n){
   const v = Math.round((n || 0) * 100) / 100;
   return (Number.isInteger(v) ? String(v) : v.toFixed(2)) + ' €';
 }
+// Saludo según la hora del día, para el mensaje de WhatsApp precargado.
+function saludoPorHora(){
+  const h = new Date().getHours();
+  if(h < 14) return 'Buenos días';
+  if(h < 21) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+// Mensaje de "ya está listo para recoger", precargado en WhatsApp al tocar el
+// teléfono de un pedido/trabajo todavía pendiente (no se usa en el historial,
+// porque esos ya se han recogido).
+function mensajeListoWhatsapp(itemLabel){
+  const cosa = itemLabel === 'pedido' ? 'pedido' : 'trabajo de taller';
+  return `${saludoPorHora()}, su ${cosa} ya está listo para recoger.\nÓpticas Florida`;
+}
 // "Seguimiento de importes": un pedido puede llevar un total pactado y una lista
 // de pagos (cada uno con su fecha) en vez de solo un estado suelto. Si no tiene
 // total, todo esto se ignora y sigue funcionando el estado manual de siempre.
@@ -2415,9 +2437,9 @@ function renderAvisoStoreChips(){
 }
 // Genera la ficha de un pedido/trabajo (siempre uno todavía no entregado: los ya
 // entregados no pasan por aquí, viven en el historial). Igual para avisos y taller.
-function avisoItemCardHtml(a, now){
+function avisoItemCardHtml(a, now, itemLabel){
   const estadoLabel = {pendiente:'Pendiente €', senal:'Señal €', pagado:'Pagado €'};
-  const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
+  const telHtml = a.telefono ? `<a class="aviso-tel" href="${whatsappHref(a.telefono, mensajeListoWhatsapp(itemLabel))}" target="_blank" rel="noopener">💬 ${escHtml(a.telefono)}</a>` : '';
   const notaHtml = `<div class="aviso-nota clickable${a.nota ? '' : ' aviso-nota-empty'}" data-id="${a.id}" title="Toca para editar la nota">${a.nota ? escHtml(a.nota) : '+ Añadir nota'}</div>`;
   // La fecha se guarda sola al crearlo (no hay que escribirla a mano) y se
   // muestra siempre, para saber de un vistazo cuándo se hizo cada uno.
@@ -2482,7 +2504,7 @@ function renderAvisoOrTallerList(dataKey, listElId, itemLabel){
     return;
   }
   const now = Date.now();
-  wrap.innerHTML = arr.map(a=>avisoItemCardHtml(a, now)).join('');
+  wrap.innerHTML = arr.map(a=>avisoItemCardHtml(a, now, itemLabel)).join('');
   const rerender = ()=>renderAvisoOrTallerList(dataKey, listElId, itemLabel);
   const entregaTexto = itemLabel==='pedido' ? 'el pedido' : 'el trabajo de taller';
   wrap.querySelectorAll('.aviso-check').forEach(chk=>{
@@ -2592,6 +2614,21 @@ function wireAvisoAddForm(dataKey, ids, itemLabel){
   const pagoInicialInput = document.getElementById(ids.pagoInicial);
   const formToggle = document.getElementById(ids.formToggle);
   const formWrap = document.getElementById(ids.formWrap);
+  const nombreInput = document.getElementById(ids.nombre);
+  const dupWarning = document.getElementById(ids.dupWarning);
+  // Aviso (no bloqueante) si al escribir el nombre ya hay un pendiente igual en
+  // esta tienda — para pillar duplicados por escribir rápido.
+  nombreInput.addEventListener('input', ()=>{
+    const val = normalizeSearch(nombreInput.value.trim());
+    if(!val){ dupWarning.hidden = true; return; }
+    const match = (DATA[dataKey][state.avisoStore] || []).find(a=>!a.avisado && normalizeSearch(a.nombre) === val);
+    if(match){
+      dupWarning.hidden = false;
+      dupWarning.textContent = `Ojo: ${match.nombre} ya tiene ${itemLabel==='pedido' ? 'un pedido pendiente' : 'un trabajo pendiente'} en esta tienda.`;
+    } else {
+      dupWarning.hidden = true;
+    }
+  });
   function syncEstadoBtns(){
     estadoBtnsWrap.querySelectorAll('.estado-btn').forEach(b=>{
       b.classList.toggle('selected', b.dataset.estado===formEstado);
@@ -2645,6 +2682,7 @@ function wireAvisoAddForm(dataKey, ids, itemLabel){
     pagoInicialInput.value = '';
     pagoInicialInput.hidden = true;
     estadoBtnsWrap.hidden = false;
+    dupWarning.hidden = true;
     formEstado = 'pendiente';
     syncEstadoBtns();
     saveData();
@@ -2653,14 +2691,54 @@ function wireAvisoAddForm(dataKey, ids, itemLabel){
 }
 wireAvisoAddForm('avisos', {
   formToggle:'avisoFormToggle', formWrap:'avisoFormWrap', nombre:'avisoNombre', telefono:'avisoTelefono',
-  nota:'avisoNota', total:'avisoTotal', pagoInicial:'avisoPagoInicial', estadoBtns:'avisoEstadoBtns', addBtn:'addAvisoBtn'
+  nota:'avisoNota', total:'avisoTotal', pagoInicial:'avisoPagoInicial', estadoBtns:'avisoEstadoBtns', addBtn:'addAvisoBtn',
+  dupWarning:'avisoDupWarning'
 }, 'pedido');
 wireAvisoAddForm('taller', {
   formToggle:'tallerFormToggle', formWrap:'tallerFormWrap', nombre:'tallerNombre', telefono:'tallerTelefono',
-  nota:'tallerNota', total:'tallerTotal', pagoInicial:'tallerPagoInicial', estadoBtns:'tallerEstadoBtns', addBtn:'addTallerBtn'
+  nota:'tallerNota', total:'tallerTotal', pagoInicial:'tallerPagoInicial', estadoBtns:'tallerEstadoBtns', addBtn:'addTallerBtn',
+  dupWarning:'tallerDupWarning'
 }, 'trabajo');
 
 /* ---------- Historial (pedidos/trabajos ya entregados y cobrados del todo) ---------- */
+// Convierte a texto CSV (separado por ";", como espera el Excel en español) el
+// historial completo (las tres tiendas juntas) de pedidos o de taller, y lo
+// descarga. Útil para llevar cuentas aparte o pasárselo a una gestoría.
+function csvEscape(val){
+  const s = String(val==null ? '' : val);
+  if(/[",;\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function exportHistorialCSV(dataKey, itemLabel){
+  const rows = [];
+  STORES.forEach(store=>{
+    (DATA[dataKey][store.code] || []).filter(a=>a.avisado).forEach(a=>{
+      rows.push([
+        store.name,
+        a.nombre,
+        a.telefono || '',
+        typeof a.total === 'number' ? fmtEuro(a.total).replace(' €', '').replace('.', ',') : '',
+        fmtTimestampShort(a.completado || a.creado),
+        a.nota || ''
+      ]);
+    });
+  });
+  if(!rows.length){
+    alert(`Todavía no hay ${itemLabel==='pedido' ? 'pedidos' : 'trabajos'} entregados en ninguna tienda para exportar.`);
+    return;
+  }
+  const header = ['Tienda', 'Nombre', 'Teléfono', 'Total (€)', 'Fecha entrega', 'Nota'];
+  const csvContent = '﻿' + [header, ...rows].map(r=>r.map(csvEscape).join(';')).join('\r\n'); // BOM para que Excel lea bien los acentos
+  const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `historial-${dataKey==='avisos'?'pedidos':'taller'}-${todayKey()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
 function renderHistorialStoreChips(chipsElId, onSwitch){
   const wrap = document.getElementById(chipsElId);
   wrap.innerHTML = STORES.map(s=>`<button class="chip ${state.avisoStore===s.code?'active':''}" data-code="${s.code}">${s.name}</button>`).join('');
@@ -2737,6 +2815,7 @@ document.getElementById('avisoResumenBtn').addEventListener('click', openAvisoRe
 document.getElementById('avisoResumenCloseBtn').addEventListener('click', ()=>{
   document.getElementById('avisoResumenModal').hidden = true;
 });
+document.getElementById('avisoHistorialExportBtn').addEventListener('click', ()=>exportHistorialCSV('avisos', 'pedido'));
 function renderTallerHistorial(){ renderHistorial('taller', {total:'tallerHistorialTotal', body:'tallerHistorialBody'}, 'trabajo'); }
 function openTallerHistorialModal(){
   renderHistorialStoreChips('tallerHistorialStoreChips', renderTallerHistorial);
@@ -2747,6 +2826,7 @@ document.getElementById('tallerHistorialBtn').addEventListener('click', openTall
 document.getElementById('tallerHistorialCloseBtn').addEventListener('click', ()=>{
   document.getElementById('tallerHistorialModal').hidden = true;
 });
+document.getElementById('tallerHistorialExportBtn').addEventListener('click', ()=>exportHistorialCSV('taller', 'trabajo'));
 
 /* ---------- Buscador (pedidos o taller, todas las tiendas a la vez) ---------- */
 function searchAvisoOrTaller(dataKey, rawQuery){
