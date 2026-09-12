@@ -2077,7 +2077,7 @@ function renderCitaList(){
       <span class="hora">${c.hora}</span>
       <div class="cita-item-body">
         <span class="texto">${escHtml(c.texto)}</span>
-        ${c.telefono ? `<a class="cita-tel" href="${whatsappHref(c.telefono)}" target="_blank" rel="noopener">💬 ${escHtml(c.telefono)}</a>` : ''}
+        ${c.telefono ? `<a class="cita-tel" href="${whatsappHref(c.telefono, mensajeRecordatorioCita(dateInput.value, c.hora))}" target="_blank" rel="noopener">💬 ${escHtml(c.telefono)}</a>` : ''}
       </div>
       <button data-i="${i}">&times;</button>
     </div>`).join('');
@@ -2379,8 +2379,14 @@ function saludoPorHora(){
 // teléfono de un pedido/trabajo todavía pendiente (no se usa en el historial,
 // porque esos ya se han recogido).
 function mensajeListoWhatsapp(itemLabel){
-  const cosa = itemLabel === 'pedido' ? 'pedido' : 'trabajo de taller';
+  const cosa = itemLabel === 'pedido' ? 'pedido' : 'encargo';
   return `${saludoPorHora()}, su ${cosa} ya está listo para recoger.\nÓpticas Florida`;
+}
+// Mensaje de recordatorio de cita, precargado en WhatsApp al tocar el teléfono
+// de una cita. La fecha (fechaKey, formato YYYY-MM-DD) y la hora ya están
+// guardadas como datos estructurados (no hay que extraerlas de texto libre).
+function mensajeRecordatorioCita(fechaKey, hora){
+  return `${saludoPorHora()}, le recordamos su cita en Ópticas Florida el ${fmtDateShort(fechaKey)} a las ${hora}h.`;
 }
 // "Seguimiento de importes": un pedido puede llevar un total pactado y una lista
 // de pagos (cada uno con su fecha) en vez de solo un estado suelto. Si no tiene
